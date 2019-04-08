@@ -21,7 +21,10 @@
 #define motoB   P1_1
 #define limte_key P1_3
 uint8 lock_flag = 0;
-static uint8 macaddr[6]={0}; //   mac ��ַ 
+static uint8 macaddr[6]={0}; //   mac 地址 
+uint8 sofe_ver = 0;
+uint8 hard_ver = 0;
+uint8 power_value = 0;
 
 //uart print
 #include "SerialApp.h"
@@ -80,14 +83,16 @@ unsigned char adcres[1] = {0};
 static uint8 scanRspData[] =
 {
   // complete name
-  0x06,   // length of this data
+  0x07,   // length of this data
   GAP_ADTYPE_LOCAL_NAME_COMPLETE,
+ 
   0x45,   // 'E'
   0x5F,   // '_'
   0x4C,   // 'L'
   0x6F,   // 'o'
   0x63,   // 'c'
   0x4B,   // 'K'
+ 
   // connection interval range
   0x05,   // length of this data
   GAP_ADTYPE_SLAVE_CONN_INTERVAL_RANGE,
@@ -127,7 +132,8 @@ static uint8 advertData[] =
 };
 
 // GAP GATT Attributes
-static uint8 attDeviceName[GAP_DEVICE_NAME_LEN] = "E-Lock";
+static uint8 attDeviceName[GAP_DEVICE_NAME_LEN] = "E_Lock";
+
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -195,7 +201,7 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
   simpleBLEPeripheral_TaskID = task_id;
   
   SerialApp_Init(task_id);
-  UART_PrintString("JDprofile Start\r\n");     //���ڴ�ӡ
+  UART_PrintString("JDprofile Start\r\n");     //串口打印
 
   // Setup the GAP
   VOID GAP_SetParamValue( TGAP_CONN_PAUSE_PERIPHERAL, DEFAULT_CONN_PAUSE_PERIPHERAL );
@@ -270,8 +276,8 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
   // Setup the SimpleProfile Characteristic Values
   {
     uint8 charValue1[20] = {1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0xA};
-  //  SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, charValue1 );
-  //  UART_PrintString("reset********************init*******************\r\n"); 
+   // SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, charValue1 );
+  //  
   }  
 //init gpio
 //  P1SEL  = 0x00;
@@ -279,7 +285,7 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
 //  P1DIR &= ~0x08;
 //  P1INP &= ~0x08;
 
-  RegisterForKeys( simpleBLEPeripheral_TaskID );  // ע�ᰴ����
+  RegisterForKeys( simpleBLEPeripheral_TaskID );  // 注册按键，
   
   // Register callback with SimpleGATTprofile
   VOID SimpleProfile_RegisterAppCBs( &simpleBLEPeripheral_SimpleProfileCBs );
@@ -295,15 +301,6 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
 #endif // defined ( DC_DC_P0_7 )
   
   Aes128EncryptAndDecrypTest();
-  
-  GAPRole_GetParameter(GAPROLE_BD_ADDR, macaddr);
-  UART_PrintValue("mac= ",macaddr[0],16);
-  UART_PrintValue("mac= ",macaddr[1],16);
-  UART_PrintValue("mac= ",macaddr[2],16);
-  UART_PrintValue("mac= ",macaddr[3],16);
-  UART_PrintValue("mac= ",macaddr[4],16);
-  UART_PrintValue("mac= ",macaddr[5],16);
-
   // Setup a delayed profile startup
   osal_set_event( simpleBLEPeripheral_TaskID, SBP_START_DEVICE_EVT );
 
@@ -318,9 +315,9 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
   {
     uint8 *pMsg;
 
-    if ( (pMsg = osal_msg_receive( simpleBLEPeripheral_TaskID )) != NULL )   //ϵͳ��Ϣ
+    if ( (pMsg = osal_msg_receive( simpleBLEPeripheral_TaskID )) != NULL )   //系统消息
     {
-      simpleBLEPeripheral_ProcessOSALMsg( (osal_event_hdr_t *)pMsg );      //��Ϣ����
+      simpleBLEPeripheral_ProcessOSALMsg( (osal_event_hdr_t *)pMsg );      //消息处理
 
       // Release the OSAL message
       VOID osal_msg_deallocate( pMsg );
@@ -366,11 +363,11 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
 }
 
 /*********************************************************************
-*ϵͳ��Ϣ��������
-�ж���ʲô��Ϣ�� pMsg->event ��ֵ��
+*系统消息处理函数
+判断是什么消息， pMsg->event 的值。
  */
 
-// ������������
+// 按键处理函数
 static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
 {
   VOID shift;  // Intentionally unreferenced parameter
@@ -379,13 +376,13 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
   {
     P1_0=0;
     P1_1=0;
-    UART_PrintString("HAL_KEY_SW_6 Start DOWN \r\n"); ;
+  //  UART_PrintString("HAL_KEY_SW_6 Start DOWN \r\n"); ;
   }
   if ( keys == 0 )
   {
     P1_0=0;
     P1_1=0;
-    UART_PrintString("HAL_KEY_SW_6 Start UP \r\n"); ;
+  //  UART_PrintString("HAL_KEY_SW_6 Start UP \r\n"); ;
   }
 }
 
@@ -525,66 +522,114 @@ uint8 * Getmac(void)
     
     return macaddr;
 }
+   
+uint8 crcdate[27]={0xef,0x01,0x13,0xc4,0x4a,0x19,0x68,0x02,0x01,0x13,0x2e,0x00,0x0a,0x13,0x04,0x03,0x16,0x0e,0x34,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+//uint8 crcdate[20]={0xef,0x01,0x13,0xc4,0x4a,0x19,0x68,0x02,0x01,0x13,0x2e,0x00,0x0a,0x13,0x04,0x03,0x16,0x0e,0x34,0x00};
 
+unsigned short ModBusCRC (unsigned char *ptr,unsigned char size)
+{
+    unsigned short a,b,tmp,CRC16,V;
+    CRC16=0xffff; //CRC 寄存器初始值
+    for (a=0;a<size;a++) //N 个字节
+    {
+        CRC16=*ptr^CRC16;
+        for (b=0;b<8;b++) //8 位数据
+        {
+            tmp=CRC16 & 0x0001;
+            CRC16 =CRC16 >>1; // 右移一位
+            if (tmp)
+            CRC16=CRC16 ^ 0xa001; // 异或多项式
+        }
+        *ptr++;
+    }
+    V = ((CRC16 & 0x00FF) << 8) | ((CRC16 & 0xFF00) >> 8) ;// 高低字节转换
+    return V;
+}
 
 /*********************************************************************
-�ӻ��������ݺ�������������ʱ��֪ͨ�û��㡣ϵͳ�ص�/
+从机接收数据函数，当有数据时，通知用户层。系统回调/
 */
-
+static uint8 rcv_data[29]={0};
 static void simpleProfileChangeCB( uint8 paramID )
 {
   uint8 newValue[20];
-  uint8 charValue1[20];
   uint8 phonemac[6];
   uint8 i = 0;
+  uint8 send_par_1[20]={0};
+  uint8 send_par_2[20]={0};
+  uint8 send_crc[31];
+
   switch( paramID )
   {
-    case SIMPLEPROFILE_CHAR1:  //CHAR1 �����ݽ��գ�������ͨ��writechar�������ݺ󣬴ӻ����ա�
+    case SIMPLEPROFILE_CHAR1:  //CHAR1 的数据接收，当主机通过writechar发送数据后，从机接收。
       SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, newValue );
-     
-      for(i=0; i<20; i++)
-        UART_PrintValue("newValu=",newValue[i],16);
- 
-
       
-      if( newValue[0] == 0x55 )
+      if((newValue[0] == 0xef)&&(newValue[1]==0x01))
       {
-          charValue1[11] = 0xaa;         
-          SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, charValue1 );
-      }  
-      else if(newValue[0] == 0x22)
-      {
-          motoA = 0;
-          motoB = 1; 
-          
-          charValue1[0] = 0xbb;
-          charValue1[1] = 0xbb;
-          charValue1[2] = 0xab;
-          charValue1[3] = 0xab;
-          charValue1[4] = 0xab;
-          charValue1[5] = 0xab;
-          charValue1[6] = 0xab;
-          charValue1[7] = 0xab;
-          charValue1[8] = 0xab;
-          charValue1[9] = 0xab;
-          charValue1[10] = 0xba;
-          charValue1[11] = 0xba;
-          charValue1[12] = 0xba;
-          charValue1[13] = 0xba;
-          charValue1[14] = 0xba;
-          charValue1[15] = 0xba;
-          charValue1[16] = 0xba;
-          charValue1[17] = 0xba;
-          charValue1[18] = 0xba;
-          charValue1[19] = 0xcc; 
-          SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, charValue1 );          
+      	for(uint8 i = 0;i < 20; i++)
+	      rcv_data[i] = newValue[i];     	
       }
-      else if(newValue[0] == 0x33)
-      { 
-        motoA = 0;
-        motoB = 0;      
-      }     
-      break;
+      else
+      {
+      	for(uint8 i = 0;i < 9; i++)
+	      rcv_data[i+20] = newValue[i]; 
+      }
+	
+	uint16 crcres = ModBusCRC(rcv_data, 27);
+
+	if(((crcres&0x00FF)==rcv_data[28])&&(crcres>>8 &&0x00FF)==rcv_data[27])
+	{
+		UART_PrintString("Ok");
+	//2e
+		if( rcv_data[10]==0x2e )
+		{
+			send_par_1[0] = 0xef;
+			send_par_1[1] = 0x01;
+		    send_par_1[2] = macaddr[0];
+		    send_par_1[3] = macaddr[1];
+		    send_par_1[4] = macaddr[2];
+		    send_par_1[5] = macaddr[3];
+		    send_par_1[6] = macaddr[4];
+		    send_par_1[7] = macaddr[5];
+		    send_par_1[8] = 0x07;
+		    send_par_1[9] = 0x15;
+		    send_par_1[10]= 0x2e;
+		    send_par_1[11]= 0x00;
+		    send_par_1[12]= 0x0a;
+		    send_par_1[13]=	macaddr[0];
+		    send_par_1[14]=	macaddr[1];
+		    send_par_1[15]=	macaddr[2];
+		    send_par_1[16]=	macaddr[3];
+		    send_par_1[17]=	macaddr[4];
+		    send_par_1[18]=	macaddr[5];
+		    send_par_1[19]= 0x00;
+		    send_par_2[0]= 0x00;
+		    send_par_2[1]= 0x00;
+		    send_par_2[2]= 0x00;
+		    send_par_2[3]= 0x00;
+		    send_par_2[4]= 0x00;
+		    send_par_2[5]= 0x00;
+		    send_par_2[6]= 0x00;
+		    send_par_2[7]= 0x00;
+		    send_par_2[8]= 0x00;
+
+		    for (int i = 0; i < 20; ++i)
+	    	{
+	    		send_crc[i] = send_par_1[i];
+	    	}
+		    for (int i = 20; i < 29; ++i)
+	    	{
+	    		send_crc[i] = send_par_2[i];
+	    	}
+	    	uint16 sendcrcres = ModBusCRC(send_crc, 31);	    		
+		    send_par_2[9]= (sendcrcres>>8&0x00FF);
+		    send_par_2[10]= sendcrcres&0x00FF;
+		
+		SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, send_par_1 );
+	  	SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, send_par_2 );
+
+	    }
+        }
       default:
         motoA = 0;
         motoB = 0;
@@ -608,4 +653,126 @@ void SendNotify(uint8 *pBuffer,uint16 length)
 }
 
 /*********************************************************************
+void ReadMac(unsigned char *TempMacAddress,int len)  // Len 一定是6  
+{  
+   TempMacAddress[5]=XREG(0x780E); // 直接指向指针内容  
+   TempMacAddress[4]=XREG(0x780F);  
+   TempMacAddress[3]=XREG(0x7810);  
+   TempMacAddress[2]=XREG(0x7811);                // define 函数直接读出数据  
+   TempMacAddress[1]=XREG(0x7812);  
+   TempMacAddress[0]=XREG(0x7813);   
+}
+
+#define XREG(addr)       ((unsigned char volatile __xdata *) 0)[addr]
+
+
+
+
+
+//随机数
+
+uint16 osal_rand( void );
+
+
+
+
+
+void InvertUint8(unsigned char *dBuf,unsigned char *srcBuf)
+{
+    int i;
+    unsigned char tmp[4];
+    tmp[0] = 0;
+    for(i=0;i< 8;i++)
+    {
+      if(srcBuf[0]& (1 << i))
+        tmp[0]|=1<<(7-i);
+    }
+    dBuf[0] = tmp[0];
+    
+}
+void InvertUint16(unsigned short *dBuf,unsigned short *srcBuf)
+{
+    int i;
+    unsigned short tmp[4];
+    tmp[0] = 0;
+    for(i=0;i< 16;i++)
+    {
+      if(srcBuf[0]& (1 << i))
+        tmp[0]|=1<<(15 - i);
+    }
+    dBuf[0] = tmp[0];
+}
+
+--------------------- 
+作者：leumber 
+来源：CSDN 
+原文：https://blog.csdn.net/leumber/article/details/54311811 
+版权声明：本文为博主原创文章，转载请附上博文链接！
+
+
+unsigned short CRC16_MODBUS(unsigned char *puchMsg, unsigned int usDataLen)
+{
+  unsigned short wCRCin = 0xFFFF;
+  unsigned short wCPoly = 0x8005;
+  unsigned char wChar = 0;
+  
+  while (usDataLen--) 	
+  {
+        wChar = *(puchMsg++);
+        InvertUint8(&wChar,&wChar);
+        wCRCin ^= (wChar << 8);
+        for(int i = 0;i < 8;i++)
+        {
+          if(wCRCin & 0x8000)
+            wCRCin = (wCRCin << 1) ^ wCPoly;
+          else
+            wCRCin = wCRCin << 1;
+        }
+  }
+  InvertUint16(&wCRCin,&wCRCin);
+  return (wCRCin) ;
+}
+
+
+#define POLYNOMIAL          0x8005 
+#define INITIAL_REMAINDER   0x0000 
+#define FINAL_XOR_VALUE     0x0000 
+
+typedef unsigned short width_t;  
+#define WIDTH (8 * sizeof(width_t))  
+#define TOPBIT (1 << (WIDTH - 1))  
+uint8 crcdate[27]={0xef,0x01,0x13,0xc4,0x4a,0x19,0x68,0x02,0x01,0x13,0x2e,0x00,0x0a,0x13,0x04,0x03,0x16,0x0e,0x34,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+uint16 crcTable[27];
+void crcInit(void)  
+{  
+    uint16 remainder;  
+    uint16 dividend;  
+    uint8 bit;  
+    for(dividend = 0; dividend < 256; dividend++)  
+    {   
+        remainder = dividend << (WIDTH - 8);   
+        for(bit = 0; bit < 8; bit++)  
+        {  
+            if(remainder & TOPBIT)   
+                remainder = (remainder << 1) ^ POLYNOMIAL;   
+            else   
+                remainder = remainder << 1;  
+        }   
+        crcTable[dividend] = remainder; 
+    }  
+}
+uint16 crcCompute(uint8 * message, uint8 nBytes)  
+{  
+    uint8 i;  
+    uint8 byte;  
+    uint16 remainder = 0x0000;  
+  
+    for( i = 0; i < nBytes; i++)  
+    {  
+        byte = (remainder >> (WIDTH - 8)) ^ message[i];  
+        remainder = crcTable[byte] ^ (remainder << 8);  
+    }   
+    return (remainder ^ 0x0000);  
+}
+
 *********************************************************************/

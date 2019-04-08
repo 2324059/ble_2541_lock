@@ -10,6 +10,7 @@
 
 #define SERVAPP_NUM_ATTR_SUPPORTED        8
 
+#if (defined USE_128_BIT_UUID)
 // Simple GATT Profile Service UUID: 0xFFF0
 CONST uint8 simpleProfileServUUID[ATT_UUID_SIZE] = 
 {
@@ -28,6 +29,26 @@ CONST uint8 simpleProfilechar4UUID[ATT_UUID_SIZE] =
   notifyUUID(SIMPLEPROFILE_CHAR4_UUID)
 };
 
+#else
+// Simple GATT Profile Service UUID: 0xFFF0
+CONST uint8 simpleProfileServUUID[ATT_BT_UUID_SIZE] =
+{ 
+  LO_UINT16(SIMPLEPROFILE_SERV_UUID), HI_UINT16(SIMPLEPROFILE_SERV_UUID)
+};
+
+// Characteristic 1 UUID: 0xFFF1
+CONST uint8 simpleProfilechar1UUID[ATT_BT_UUID_SIZE] =
+{ 
+  LO_UINT16(SIMPLEPROFILE_CHAR1_UUID), HI_UINT16(SIMPLEPROFILE_CHAR1_UUID)
+};
+
+// Characteristic 4 UUID: 0xFFF4
+CONST uint8 simpleProfilechar4UUID[ATT_BT_UUID_SIZE] =
+{ 
+  LO_UINT16(SIMPLEPROFILE_CHAR4_UUID), HI_UINT16(SIMPLEPROFILE_CHAR4_UUID)
+};
+
+#endif
 
 static simpleProfileCBs_t *simpleProfile_AppCBs = NULL;
 
@@ -258,7 +279,7 @@ static uint8 simpleProfile_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr
   {
     // Insufficient authorization
     return ( ATT_ERR_INSUFFICIENT_AUTHOR );
-      UART_PrintString(" ****permissions***\r\n");
+  //    UART_PrintString(" ****permissions***\r\n");
   }
   
   // Make sure it's not a blob operation (no attributes in the profile are long)
