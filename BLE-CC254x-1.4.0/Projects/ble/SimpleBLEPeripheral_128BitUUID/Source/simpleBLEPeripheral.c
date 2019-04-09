@@ -525,7 +525,7 @@ uint8 * Getmac(void)
    
 uint8 crcdate[27]={0xef,0x01,0x13,0xc4,0x4a,0x19,0x68,0x02,0x01,0x13,0x2e,0x00,0x0a,0x13,0x04,0x03,0x16,0x0e,0x34,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
 //uint8 crcdate[20]={0xef,0x01,0x13,0xc4,0x4a,0x19,0x68,0x02,0x01,0x13,0x2e,0x00,0x0a,0x13,0x04,0x03,0x16,0x0e,0x34,0x00};
-
+//	C8  FD  19  9C  20  CC
 unsigned short ModBusCRC (unsigned char *ptr,unsigned char size)
 {
     unsigned short a,b,tmp,CRC16,V;
@@ -549,93 +549,140 @@ unsigned short ModBusCRC (unsigned char *ptr,unsigned char size)
 /*********************************************************************
 从机接收数据函数，当有数据时，通知用户层。系统回调/
 */
-static uint8 rcv_data[29]={0};
+
+uint8 rec_buf1[20]={0};
+uint8 rec_buf2[20]={0};
+uint8 rcv_data[29]={0};
+
+uint8 rec_flag = 0;
 static void simpleProfileChangeCB( uint8 paramID )
 {
   uint8 newValue[20];
   uint8 phonemac[6];
   uint8 i = 0;
-  uint8 send_par_1[20]={0};
-  uint8 send_par_2[20]={0};
+  uint8 rcv_datasend_2e_command_1[20]={0};
+  uint8 rcv_datasend_2e_command_2[20]={0};
+  uint8 send_2c_command_1[20]={0};
+  uint8 send_2c_command_2[20]={0};
+  uint8 send_2d_command_1[20]={0};
+  uint8 send_2d_command_2[20]={0};
   uint8 send_crc[31];
+
 
   switch( paramID )
   {
-    case SIMPLEPROFILE_CHAR1:  //CHAR1 的数据接收，当主机通过writechar发送数据后，从机接收。
-      SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, newValue );
-      
-      if((newValue[0] == 0xef)&&(newValue[1]==0x01))
-      {
-      	for(uint8 i = 0;i < 20; i++)
-	      rcv_data[i] = newValue[i];     	
-      }
-      else
-      {
-      	for(uint8 i = 0;i < 9; i++)
-	      rcv_data[i+20] = newValue[i]; 
-      }
-	
-	uint16 crcres = ModBusCRC(rcv_data, 27);
-
-	if(((crcres&0x00FF)==rcv_data[28])&&(crcres>>8 &&0x00FF)==rcv_data[27])
-	{
-		UART_PrintString("Ok");
-	//2e
-		if( rcv_data[10]==0x2e )
+	    case SIMPLEPROFILE_CHAR1:  //CHAR1 的数据接收，当主机通过writechar发送数据后，从机接收。
+	      SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, newValue );
+	      if (rec_flag==0)
+	      {
+	      	rcv_data[0] = newValue[0];
+	      	rcv_data[1] = newValue[1];
+	      	rcv_data[2] = newValue[2];
+	      	rcv_data[3] = newValue[3];
+	      	rcv_data[4] = newValue[4];
+	      	rcv_data[5] = newValue[5];
+	      	rcv_data[6] = newValue[6];
+	      	rcv_data[7] = newValue[7];
+	      	rcv_data[8] = newValue[8];
+	      	rcv_data[9] = newValue[9];
+	      	rcv_data[10] = newValue[10];
+	      	rcv_data[11] = newValue[11];
+	      	rcv_data[12] = newValue[12];
+	      	rcv_data[13] = newValue[13];
+	      	rcv_data[14] = newValue[14];
+	      	rcv_data[15] = newValue[15];
+	      	rcv_data[16] = newValue[16];
+	      	rcv_data[17] = newValue[17];
+	      	rcv_data[18] = newValue[18];
+	      	rcv_data[19] = newValue[19];	
+	      	// UART_PrintString("rcv_data_1 rec finished");
+          }
+		if (rec_flag == 1)
 		{
-			send_par_1[0] = 0xef;
-			send_par_1[1] = 0x01;
-		    send_par_1[2] = macaddr[0];
-		    send_par_1[3] = macaddr[1];
-		    send_par_1[4] = macaddr[2];
-		    send_par_1[5] = macaddr[3];
-		    send_par_1[6] = macaddr[4];
-		    send_par_1[7] = macaddr[5];
-		    send_par_1[8] = 0x07;
-		    send_par_1[9] = 0x15;
-		    send_par_1[10]= 0x2e;
-		    send_par_1[11]= 0x00;
-		    send_par_1[12]= 0x0a;
-		    send_par_1[13]=	macaddr[0];
-		    send_par_1[14]=	macaddr[1];
-		    send_par_1[15]=	macaddr[2];
-		    send_par_1[16]=	macaddr[3];
-		    send_par_1[17]=	macaddr[4];
-		    send_par_1[18]=	macaddr[5];
-		    send_par_1[19]= 0x00;
-		    send_par_2[0]= 0x00;
-		    send_par_2[1]= 0x00;
-		    send_par_2[2]= 0x00;
-		    send_par_2[3]= 0x00;
-		    send_par_2[4]= 0x00;
-		    send_par_2[5]= 0x00;
-		    send_par_2[6]= 0x00;
-		    send_par_2[7]= 0x00;
-		    send_par_2[8]= 0x00;
+	      	rcv_data[20] = newValue[0];
+	      	rcv_data[21] = newValue[1];
+	      	rcv_data[22] = newValue[2];
+	      	rcv_data[23] = newValue[3];
+	      	rcv_data[24] = newValue[4];
+	      	rcv_data[25] = newValue[5];
+	      	rcv_data[26] = newValue[6];
+	      	rcv_data[27] = newValue[7];
+	      	rcv_data[28] = newValue[8];
+	      	// UART_PrintValue("  rcv_data[27]= ", rcv_data[27],16);
+	      	// UART_PrintValue("  rcv_data[28]= ", rcv_data[28],16);
+/*  在此处理 2e 指令
+			for (int i = 0; i < 9; i++)
+				UART_PrintValue(" =0x", rcv_data[i+20],16);*/
+			uint16 crcres = ModBusCRC(rcv_data, 27);
+			uint8 crc_L = (crcres >> 8 & 0x00FF);    //27
+			uint8 crc_H = (crcres & 0x00FF);         //28
+			// UART_PrintValue(" crcres=0x", crcres,16);
+	  //     	UART_PrintValue(" crc_L=", crc_L,16);
+	  //     	UART_PrintValue(" crc_H=", crc_H,16);
+			if( (crc_H==rcv_data[28]) && (crc_L==rcv_data[27]) )
+			{
+                // UART_PrintString("----------ok-----------");
+                rcv_datasend_2e_command_1[0] = 0xef;
+                rcv_datasend_2e_command_1[1] = 0x01;
+			    rcv_datasend_2e_command_1[2] = macaddr[0];
+			    rcv_datasend_2e_command_1[3] = macaddr[1];
+			    rcv_datasend_2e_command_1[4] = macaddr[2];
+			    rcv_datasend_2e_command_1[5] = macaddr[3];
+			    rcv_datasend_2e_command_1[6] = macaddr[4];
+			    rcv_datasend_2e_command_1[7] = macaddr[5];
+			    rcv_datasend_2e_command_1[8] = 0x07;
+			    rcv_datasend_2e_command_1[9] = 0x15;
+			    rcv_datasend_2e_command_1[10]= 0x2e;
+			    rcv_datasend_2e_command_1[11]= 0x00;
+			    rcv_datasend_2e_command_1[12]= 0x0a;
+			    rcv_datasend_2e_command_1[13]=	macaddr[0];
+			    rcv_datasend_2e_command_1[14]=	macaddr[1];
+			    rcv_datasend_2e_command_1[15]=	macaddr[2];
+			    rcv_datasend_2e_command_1[16]=	macaddr[3];
+			    rcv_datasend_2e_command_1[17]=	macaddr[4];
+			    rcv_datasend_2e_command_1[18]=	macaddr[5];
+			    rcv_datasend_2e_command_1[19]= 0x00;
+			    rcv_datasend_2e_command_2[0]= 0x00;
+			    rcv_datasend_2e_command_2[1]= 0x00;
+			    rcv_datasend_2e_command_2[2]= 0x00;
+			    rcv_datasend_2e_command_2[3]= 0x00;
+			    rcv_datasend_2e_command_2[4]= 0x00;
+			    rcv_datasend_2e_command_2[5]= 0x00;
+			    rcv_datasend_2e_command_2[6]= 0x00;
+			    rcv_datasend_2e_command_2[7]= 0x00;
+			    rcv_datasend_2e_command_2[8]= 0x00;
+			 	for (int i = 0; i < 20; ++i)
+		    	{
+		    		send_crc[i] = rcv_datasend_2e_command_1[i];
+		    	}
+			    for (int i = 0; i < 9; ++i)
+		    	{
+		    		send_crc[i+20] = rcv_datasend_2e_command_2[i];
+		    	}
+		    	uint16 sendcrcres = ModBusCRC(send_crc, 29);
+			    rcv_datasend_2e_command_2[9]= ((sendcrcres>>8) &0x00FF);
+			    rcv_datasend_2e_command_2[10]= (sendcrcres&0x00FF);
+			    // for (int i = 0; i < 20; ++i)
+		    	// {
+		    	// 	UART_PrintValue(" send= ", rcv_datasend_2e_command_2[i],16);
+		    	// }			
+				SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, rcv_datasend_2e_command_1 );
+		  		SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, rcv_datasend_2e_command_2 );
+			}
+		}
 
-		    for (int i = 0; i < 20; ++i)
-	    	{
-	    		send_crc[i] = send_par_1[i];
-	    	}
-		    for (int i = 20; i < 29; ++i)
-	    	{
-	    		send_crc[i] = send_par_2[i];
-	    	}
-	    	uint16 sendcrcres = ModBusCRC(send_crc, 31);	    		
-		    send_par_2[9]= (sendcrcres>>8&0x00FF);
-		    send_par_2[10]= sendcrcres&0x00FF;
 		
-		SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, send_par_1 );
-	  	SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, send_par_2 );
 
-	    }
-        }
-      default:
-        motoA = 0;
-        motoB = 0;
-      // should not reach here!
-      break;
-  }
+
+        rec_flag++;
+
+
+		break;
+	    default:
+	        motoA = 0;
+	        motoB = 0;
+	    break;
+   }
 }
 
 void SendNotify(uint8 *pBuffer,uint16 length)
