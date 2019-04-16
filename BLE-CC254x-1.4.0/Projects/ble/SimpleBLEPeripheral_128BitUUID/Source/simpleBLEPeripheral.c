@@ -26,6 +26,7 @@ static uint8 macaddr[6]={0}; //   mac 地址
 uint8 sofe_ver = 0;
 uint8 hard_ver = 0;
 uint8 power_value = 0;
+uint8 lock_status = 2;
 
 uint8 keya[16] = {0x00,0x01,0x02,0x3,0x4,0x5,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
 
@@ -175,18 +176,18 @@ static simpleProfileCBs_t simpleBLEPeripheral_SimpleProfileCBs =
 void Aes128EncryptAndDecrypTest(void)
 {
   int i = 0;
-  uint8 key[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
-  uint8 source_buf[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+  uint8 key[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+  uint8 source_buf[16] = {123,155,237,150,125,155,125,59,239,102,94,241,19,165,254,248};
   uint8 encrypted_buf[16];
   uint8 deccrypted_buf[16];
 
   LL_Encrypt( key, source_buf, encrypted_buf );
-  LL_EXT_Decrypt( key, encrypted_buf, deccrypted_buf);
+//  LL_EXT_Decrypt( key, encrypted_buf, deccrypted_buf);
 
   //tx_printf("source:");
   for( i=0; i<16; i++)
   {
-    UART_PrintValue(" ", source_buf[i],16);
+    UART_PrintValue(" ", encrypted_buf[i],16);
   }
   //tx_printf("");
   //tx_printf("deccrypte:");
@@ -308,7 +309,7 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
   HCI_EXT_MapPmIoPortCmd( HCI_EXT_PM_IO_PORT_P0, HCI_EXT_PM_IO_PORT_PIN7 );
 #endif // defined ( DC_DC_P0_7 )
   
-  Aes128EncryptAndDecrypTest();
+  //Aes128EncryptAndDecrypTest();
   // Setup a delayed profile startup
   osal_set_event( simpleBLEPeripheral_TaskID, SBP_START_DEVICE_EVT );
 
@@ -379,9 +380,8 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
 
     // Perform periodic application task
     //adc
-//    adcres[0] = HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
-    adcres[0] = 0xAA;
-    
+    adcres[0] = HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
+
     rgb_led();
     rgb_flag ++;
 
@@ -464,7 +464,6 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         systemId[6] = ownAddress[4];
         systemId[5] = ownAddress[3];
         
-        
         macaddr[5] = ownAddress[0];
         macaddr[4] = ownAddress[1];
         macaddr[3] = ownAddress[2];
@@ -474,7 +473,6 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
          
 //3E E8 9C 19 FD C8  
 //C8 FD 19 9C E8 3E
-        
         DevInfo_SetParameter(DEVINFO_SYSTEM_ID, DEVINFO_SYSTEM_ID_LEN, systemId);
       }
       break;
@@ -546,7 +544,6 @@ static void performPeriodicTask( void )
 {
   //uint8 value[20]={0,1,2,3};
   //SendNotify(value,20);
-
 }
 
 uint8 * Getmac(void)
@@ -558,7 +555,6 @@ uint8 * Getmac(void)
 }
    
 uint8 crcdate[27]={0xef,0x01,0x13,0xc4,0x4a,0x19,0x68,0x02,0x01,0x13,0x2e,0x00,0x0a,0x13,0x04,0x03,0x16,0x0e,0x34,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-
 //	C8  FD  19  9C  20  CC
 unsigned short ModBusCRC (unsigned char *ptr,unsigned char size)
 {
@@ -583,13 +579,9 @@ unsigned short ModBusCRC (unsigned char *ptr,unsigned char size)
 /*********************************************************************
 从机接收数据函数，当有数据时，通知用户层。系统回调/
 */
-
-uint8 rec_buf1[20]={0};
-uint8 rec_buf2[20]={0};
 uint8 rcv_data[29]={0};
 uint8 keyB[16]={0};
 
-uint8 rec_flag = 0;
 static void simpleProfileChangeCB( uint8 paramID )
 {
   uint8 newValue[20];
@@ -599,27 +591,10 @@ static void simpleProfileChangeCB( uint8 paramID )
   uint8 rcv_datasend_command_2[20]={0};
   uint8 send_crc[31];
 
-
   switch( paramID )
   {
-	    case SIMPLEPROFILE_CHAR1:  //CHAR1 的数据接收，当主机通过writechar发送数据后，从机接收。
+	    case SIMPLEPROFILE_CHAR1:
 	      SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, newValue );
-              // if(newValue[0]==0x11)
-              // {
-              // 	motoA = 1;
-              //   motoB = 0;
-              // }
-              // if(newValue[0]==0x22)
-              // {
-              // 	motoA = 0;
-              // 	motoB = 1;
-              // }
-              // if(newValue[0]==0x33)
-              // {
-              // 	motoA = 0;
-              // 	motoB = 0;
-              // }
-              // 
           
           if(newValue[0] == 0xef)
           {
@@ -665,7 +640,6 @@ static void simpleProfileChangeCB( uint8 paramID )
 			{
 				if( (crc_H==rcv_data[28]) && (crc_L==rcv_data[27]) )
 				{
-	                // UART_PrintString("----------ok-----------");
 	                rcv_datasend_command_1[0] = 0xef;
 	                rcv_datasend_command_1[1] = 0x01;
 				    rcv_datasend_command_1[2] = macaddr[0];
@@ -705,24 +679,13 @@ static void simpleProfileChangeCB( uint8 paramID )
 			    	}
 			    	uint16 sendcrcres = ModBusCRC(send_crc, 29);
 				    rcv_datasend_command_2[9]= ((sendcrcres>>8) &0x00FF);
-				    rcv_datasend_command_2[10]= (sendcrcres&0x00FF);
-				    // for (int i = 0; i < 20; ++i)
-			    	// {
-			    	// 	UART_PrintValue(" send= ", rcv_datasend_command_1[i],10);
-			    	// }
-				    // for (int i = 0; i < 20; ++i)
-			    	// {
-			    	// 	UART_PrintValue(" send= ", rcv_datasend_command_2[i],10);
-			    	// }	
+				    rcv_datasend_command_2[10]= (sendcrcres&0x00FF);	
 			    	SendNotify(rcv_datasend_command_1,20);
 			    	SendNotify(rcv_datasend_command_2,11);
 				}
 			}
 			else if(rcv_data[10] == 0x2c)
-			{
-				// UART_PrintValue("the three data= ",newValue[10],16);
-				// UART_PrintValue(" 0x2c= ",newValue[0],16);		
-				// 				
+			{			
 				if( (crc_H==rcv_data[28]) && (crc_L==rcv_data[27]) )
 				{
 					uint8 source_buf[16]={0};
@@ -730,9 +693,6 @@ static void simpleProfileChangeCB( uint8 paramID )
 					{
 						source_buf[i] = rcv_data[i+11];
 					}
-					// uint8 encrypted_buf[16]={0};
-					// LL_Encrypt( keya, source_buf, encrypted_buf ); 
-	                // UART_PrintString("----------ok-----------") 
 	                rcv_datasend_command_1[0] = 0xef;
 	                rcv_datasend_command_1[1] = 0x01;
 				    rcv_datasend_command_1[2] = macaddr[0];
@@ -758,9 +718,8 @@ static void simpleProfileChangeCB( uint8 paramID )
 				    rcv_datasend_command_2[2]= osal_rand()&0x00FF;
 				    rcv_datasend_command_2[3]= osal_rand()&0x00FF;
 				    rcv_datasend_command_2[4]= osal_rand()&0x00FF;
-				    rcv_datasend_command_2[5]= rcv_data[25];
-			    	rcv_datasend_command_2[6]= rcv_data[26];
-
+				    rcv_datasend_command_2[5]= rcv_data[23];
+			    	rcv_datasend_command_2[6]= rcv_data[24];
 				 	for (int i = 0; i < 20; ++i)
 			    	{
 			    		send_crc[i] = rcv_datasend_command_1[i];
@@ -769,21 +728,17 @@ static void simpleProfileChangeCB( uint8 paramID )
 			    	{
 			    		send_crc[i+20] = rcv_datasend_command_2[i];
 			    	}
+
+			    	uint8 kkk[16] = {0};
+			    	for(uint8 i =0 ; i<16; i++)
+			    	{
+			    		kkk[i] = send_crc[i+11];
+			    	}
+					LL_Encrypt( keya, kkk, keyB ); 
 			    	uint16 sendcrcres = ModBusCRC(send_crc, 27);
 				    rcv_datasend_command_2[7]= ((sendcrcres>>8) &0x00FF);
 				    rcv_datasend_command_2[8]= (sendcrcres&0x00FF);
 
-			    	for (int i = 0; i < 16; ++i)
-			    	{
-			    		source_buf[i] = send_crc[i+11];
-			    	}
-			    	
-			    	LL_Encrypt( keya, source_buf, keyB );
-
-			    	for (int i = 0; i < 16; ++i)
-			    	{
-			    		UART_PrintValue("  kB= ", keyB[i],10);
-			    	}
 				    SendNotify(rcv_datasend_command_1,20);
 			    	SendNotify(rcv_datasend_command_2,9);
 			  		for (int i = 0; i < 29; ++i)
@@ -793,56 +748,87 @@ static void simpleProfileChangeCB( uint8 paramID )
 			  	}
 			}
 			else if(rcv_data[10] == 0x2d)
-			{
+			{				
+
 				if( (crc_H==rcv_data[28]) && (crc_L==rcv_data[27]) )
 				{
+					// for (int i = 0; i < 29; i++)
+					// 	UART_PrintValue(" b= ", rcv_data[i],10);
+
 					uint8 encrypted_buf[16]={0};
 					uint8 deccrypted_buf[16]={0};
 					for (int i = 0; i < 16; ++i)
 					{
 						encrypted_buf[i] = rcv_data[i+11];
 					}
+
 					LL_EXT_Decrypt( keyB, encrypted_buf, deccrypted_buf);
+
 					// for (int i = 0; i < 16; i++)
-					// {
 					// 	UART_PrintValue(" dec= ", deccrypted_buf[i],10);
-					// } 
+
 					// 解密后对密文的第一第二个字节验证 是否是 0x34   0x56    正确后 判断倒数第一个字节，如果为254   对应上锁  ， 255对应解锁。  
 					 
-					// 
-					// 
-					// 
-					// 
-					// 
-					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56))
+		            rcv_datasend_command_1[0] = 0xef;
+	                rcv_datasend_command_1[1] = 0x01;
+				    rcv_datasend_command_1[2] = macaddr[0];
+				    rcv_datasend_command_1[3] = macaddr[1];
+				    rcv_datasend_command_1[4] = macaddr[2];
+				    rcv_datasend_command_1[5] = macaddr[3];
+				    rcv_datasend_command_1[6] = macaddr[4];
+				    rcv_datasend_command_1[7] = macaddr[5];
+				    rcv_datasend_command_1[8] = 0x07;
+				    rcv_datasend_command_1[9] = 0x13;
+				    rcv_datasend_command_1[10]= 0x2d;
+				    
+				    rcv_datasend_command_1[12]= adcres[0];
+				    
+				    rcv_datasend_command_1[14]= 0;
+				    rcv_datasend_command_1[15]= 0;
+				    rcv_datasend_command_1[16]= 0;
+				    rcv_datasend_command_1[17]= 0;
+				    rcv_datasend_command_1[18]= 0;
+				    rcv_datasend_command_1[19]= 0;
+				    rcv_datasend_command_2[0]= 0;
+				    rcv_datasend_command_2[1]= 0;
+				    rcv_datasend_command_2[2]= 0;
+				    rcv_datasend_command_2[3]= 0;
+				    rcv_datasend_command_2[4]= 0;
+				    rcv_datasend_command_2[5]= 0;				 
+					 
+					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56)&&(deccrypted_buf[15])== 0xfe)    //lock
 					{
-		                rcv_datasend_command_1[0] = 0xef;
-		                rcv_datasend_command_1[1] = 0x01;
-					    rcv_datasend_command_1[2] = macaddr[0];
-					    rcv_datasend_command_1[3] = macaddr[1];
-					    rcv_datasend_command_1[4] = macaddr[2];
-					    rcv_datasend_command_1[5] = macaddr[3];
-					    rcv_datasend_command_1[6] = macaddr[4];
-					    rcv_datasend_command_1[7] = macaddr[5];
-					    rcv_datasend_command_1[8] = 0x07;
-					    rcv_datasend_command_1[9] = 0x13;
-					    rcv_datasend_command_1[10]= 0x2d;
-					    rcv_datasend_command_1[11]= 0x00;
-					    rcv_datasend_command_1[12]= 0;
-					    rcv_datasend_command_1[13]= 0;
-					    rcv_datasend_command_1[14]= 0;
-					    rcv_datasend_command_1[15]= 0;
-					    rcv_datasend_command_1[16]= 0;
-					    rcv_datasend_command_1[17]= 0;
-					    rcv_datasend_command_1[18]= 0;
-					    rcv_datasend_command_1[19]= 0;
-					    rcv_datasend_command_2[0]= 0;
-					    rcv_datasend_command_2[1]= 0;
-					    rcv_datasend_command_2[2]= 0;
-					    rcv_datasend_command_2[3]= 0;
-					    rcv_datasend_command_2[4]= 0;
-					    rcv_datasend_command_2[5]= ;
-					    rcv_datasend_command_2[6]= ;
+						lock_status = 0;
+						rcv_datasend_command_1[11]= 0x05;
+						rcv_datasend_command_1[13]= lock_status;
+					    rcv_datasend_command_2[6]= 0xfe;
+					 	for (uint8 i = 0; i < 20; ++i)
+				    	{
+				    		send_crc[i] = rcv_datasend_command_1[i];
+				    	}
+					    for (uint8 i = 0; i < 7; ++i)
+				    	{
+				    		send_crc[i+20] = rcv_datasend_command_2[i];
+				    	}
+				    	uint16 sendcrcres = ModBusCRC(send_crc, 27);
+
+					    rcv_datasend_command_2[7]= ((sendcrcres>>8) &0x00FF);
+					    rcv_datasend_command_2[8]= (sendcrcres&0x00FF);
+					    SendNotify(rcv_datasend_command_1,20);
+				    	SendNotify(rcv_datasend_command_2,9);
+				  		for (int i = 0; i < 29; ++i)
+				  		{
+				  			rcv_data[i] = 0;
+				  		}
+				  		motoA = 1;
+              			motoB = 0;
+					}
+					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56)&&(deccrypted_buf[15])== 0xff)    //unlock
+					{
+						rcv_datasend_command_1[11]= 0x00;
+						lock_status = 1;
+						rcv_datasend_command_1[13]= lock_status;
+					    rcv_datasend_command_2[6]= 0xff;
 					 	for (uint8 i = 0; i < 20; ++i)
 				    	{
 				    		send_crc[i] = rcv_datasend_command_1[i];
@@ -860,342 +846,12 @@ static void simpleProfileChangeCB( uint8 paramID )
 				  		{
 				  			rcv_data[i] = 0;
 				  		}
+				  		motoA = 0;
+              			motoB = 1;
 					}
+
 				}
-			}
-/*
-            
-	      if (rec_flag==0)
-	      {
-	      	rcv_data[0] = newValue[0];
-	      	rcv_data[1] = newValue[1];
-	      	rcv_data[2] = newValue[2];
-	      	rcv_data[3] = newValue[3];
-	      	rcv_data[4] = newValue[4];
-	      	rcv_data[5] = newValue[5];
-	      	rcv_data[6] = newValue[6];
-	      	rcv_data[7] = newValue[7];
-	      	rcv_data[8] = newValue[8];
-	      	rcv_data[9] = newValue[9];
-	      	rcv_data[10] = newValue[10];
-	      	rcv_data[11] = newValue[11];
-	      	rcv_data[12] = newValue[12];
-	      	rcv_data[13] = newValue[13];
-	      	rcv_data[14] = newValue[14];
-	      	rcv_data[15] = newValue[15];
-	      	rcv_data[16] = newValue[16];
-	      	rcv_data[17] = newValue[17];
-	      	rcv_data[18] = newValue[18];
-	      	rcv_data[19] = newValue[19];	
-	      	// UART_PrintString("rcv_data_1 rec finished");
-          }
-		if (rec_flag == 1)
-		{
-	      	rcv_data[20] = newValue[0];
-	      	rcv_data[21] = newValue[1];
-	      	rcv_data[22] = newValue[2];
-	      	rcv_data[23] = newValue[3];
-	      	rcv_data[24] = newValue[4];
-	      	rcv_data[25] = newValue[5];
-	      	rcv_data[26] = newValue[6];
-	      	rcv_data[27] = newValue[7];
-	      	rcv_data[28] = newValue[8];
-	      	// UART_PrintValue("  rcv_data[27]= ", rcv_data[27],16);
-	      	// UART_PrintValue("  rcv_data[28]= ", rcv_data[28],16);
-//  在此处理 2e 指令
-//			for (int i = 0; i < 9; i++)
-//				UART_PrintValue(" =0x", rcv_data[i+20],16);
-			uint16 crcres = ModBusCRC(rcv_data, 27);
-			uint8 crc_L = (crcres >> 8 & 0x00FF);    //27
-			uint8 crc_H = (crcres & 0x00FF);         //28
-			// UART_PrintValue(" crcres=0x", crcres,16);
-	  //     	UART_PrintValue(" crc_L=", crc_L,16);
-	  //     	UART_PrintValue(" crc_H=", crc_H,16);
-			if( (crc_H==rcv_data[28]) && (crc_L==rcv_data[27]) )
-			{
-                // UART_PrintString("----------ok-----------");
-                rcv_datasend_command_1[0] = 0xef;
-                rcv_datasend_command_1[1] = 0x01;
-			    rcv_datasend_command_1[2] = macaddr[0];
-			    rcv_datasend_command_1[3] = macaddr[1];
-			    rcv_datasend_command_1[4] = macaddr[2];
-			    rcv_datasend_command_1[5] = macaddr[3];
-			    rcv_datasend_command_1[6] = macaddr[4];
-			    rcv_datasend_command_1[7] = macaddr[5];
-			    rcv_datasend_command_1[8] = 0x07;
-			    rcv_datasend_command_1[9] = 0x15;
-			    rcv_datasend_command_1[10]= 0x2e;
-			    rcv_datasend_command_1[11]= 0x00;
-			    rcv_datasend_command_1[12]= 0x0a;
-			    rcv_datasend_command_1[13]=	macaddr[0];
-			    rcv_datasend_command_1[14]=	macaddr[1];
-			    rcv_datasend_command_1[15]=	macaddr[2];
-			    rcv_datasend_command_1[16]=	macaddr[3];
-			    rcv_datasend_command_1[17]=	macaddr[4];
-			    rcv_datasend_command_1[18]=	macaddr[5];
-			    rcv_datasend_command_1[19]= 0x00;
-			    rcv_datasend_command_2[0]= 0x00;
-			    rcv_datasend_command_2[1]= 0x00;
-			    rcv_datasend_command_2[2]= 0x00;
-			    rcv_datasend_command_2[3]= 0x00;
-			    rcv_datasend_command_2[4]= 0x00;
-			    rcv_datasend_command_2[5]= 0x00;
-			    rcv_datasend_command_2[6]= 0x00;
-			    rcv_datasend_command_2[7]= 0x00;
-			    rcv_datasend_command_2[8]= 0x00;
-			 	for (int i = 0; i < 20; ++i)
-		    	{
-		    		send_crc[i] = rcv_datasend_command_1[i];
-		    	}
-			    for (int i = 0; i < 9; ++i)
-		    	{
-		    		send_crc[i+20] = rcv_datasend_command_2[i];
-		    	}
-		    	uint16 sendcrcres = ModBusCRC(send_crc, 29);
-			    rcv_datasend_command_2[9]= ((sendcrcres>>8) &0x00FF);
-			    rcv_datasend_command_2[10]= (sendcrcres&0x00FF);
-			    // for (int i = 0; i < 20; ++i)
-		    	// {
-		    	// 	UART_PrintValue(" send= ", rcv_datasend_command_1[i],10);
-		    	// }
-			    // for (int i = 0; i < 20; ++i)
-		    	// {
-		    	// 	UART_PrintValue(" send= ", rcv_datasend_command_2[i],10);
-		    	// }	
-		    	SendNotify(rcv_datasend_command_1,20);
-		    	SendNotify(rcv_datasend_command_2,11);
-
-				// SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, rcv_datasend_command_1 );
-		  // 		SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, rcv_datasend_command_2 );
-		  		
-		  		for (int i = 0; i < 29; ++i)
-		  		{
-		  			rcv_data[i] = 0;
-		  		}
-			}
 		}
-
-		if( rec_flag == 3 )
-		{
-			UART_PrintValue("the three data= ",newValue[10],16);
-			UART_PrintValue(" 0x2c= ",newValue[0],16);			
-			rcv_data[0] = newValue[0];
-	      	rcv_data[1] = newValue[1];
-	      	rcv_data[2] = newValue[2];
-	      	rcv_data[3] = newValue[3];
-	      	rcv_data[4] = newValue[4];
-	      	rcv_data[5] = newValue[5];
-	      	rcv_data[6] = newValue[6];
-	      	rcv_data[7] = newValue[7];
-	      	rcv_data[8] = newValue[8];
-	      	rcv_data[9] = newValue[9];
-	      	rcv_data[10] = newValue[10];
-	      	rcv_data[11] = newValue[11];
-	      	rcv_data[12] = newValue[12];
-	      	rcv_data[13] = newValue[13];
-	      	rcv_data[14] = newValue[14];
-	      	rcv_data[15] = newValue[15];
-	      	rcv_data[16] = newValue[16];
-	      	rcv_data[17] = newValue[17];
-	      	rcv_data[18] = newValue[18];
-	      	rcv_data[19] = newValue[19];
-
-		}
-		if( rec_flag == 4 )
-		{
-			rcv_data[20] = newValue[0];
-	      	rcv_data[21] = newValue[1];
-	      	rcv_data[22] = newValue[2];
-	      	rcv_data[23] = newValue[3];
-	      	rcv_data[24] = newValue[4];
-	      	rcv_data[25] = newValue[5];
-	      	rcv_data[26] = newValue[6];
-	      	rcv_data[27] = newValue[7];
-	      	rcv_data[28] = newValue[8];
-
-	      	uint16 crcres = ModBusCRC(rcv_data, 27);
-			uint8 crc_L = (crcres >> 8 & 0x00FF);    //27
-			uint8 crc_H = (crcres & 0x00FF);         //28
-
-			if( (crc_H==rcv_data[28]) && (crc_L==rcv_data[27]) )
-			{
-                // UART_PrintString("----------ok-----------");
-                rcv_datasend_command_1[0] = 0xef;
-                rcv_datasend_command_1[1] = 0x01;
-			    rcv_datasend_command_1[2] = macaddr[0];
-			    rcv_datasend_command_1[3] = macaddr[1];
-			    rcv_datasend_command_1[4] = macaddr[2];
-			    rcv_datasend_command_1[5] = macaddr[3];
-			    rcv_datasend_command_1[6] = macaddr[4];
-			    rcv_datasend_command_1[7] = macaddr[5];
-			    rcv_datasend_command_1[8] = 0x07;
-			    rcv_datasend_command_1[9] = 0x13;
-			    rcv_datasend_command_1[10]= 0x2c;
-			    rcv_datasend_command_1[11]= osal_rand()&0x00FF;
-			    rcv_datasend_command_1[12]= osal_rand()&0x00FF;
-			    rcv_datasend_command_1[13]= osal_rand()&0x00FF;
-			    rcv_datasend_command_1[14]= osal_rand()&0x00FF;
-			    rcv_datasend_command_1[15]= osal_rand()&0x00FF;
-			    rcv_datasend_command_1[16]= osal_rand()&0x00FF;
-			    rcv_datasend_command_1[17]= osal_rand()&0x00FF;
-			    rcv_datasend_command_1[18]= osal_rand()&0x00FF;
-			    rcv_datasend_command_1[19]= osal_rand()&0x00FF;
-			    rcv_datasend_command_2[0]= osal_rand()&0x00FF;
-			    rcv_datasend_command_2[1]= osal_rand()&0x00FF;
-			    rcv_datasend_command_2[2]= osal_rand()&0x00FF;
-			    rcv_datasend_command_2[3]= osal_rand()&0x00FF;
-			    rcv_datasend_command_2[4]= osal_rand()&0x00FF;
-			    rcv_datasend_command_2[5]= rcv_data[25];
-			    rcv_datasend_command_2[6]= rcv_data[26];
-
-			 	for (uint8 i = 0; i < 20; ++i)
-		    	{
-		    		send_crc[i] = rcv_datasend_command_1[i];
-		    	}
-			    for (uint8 i = 0; i < 7; ++i)
-		    	{
-		    		send_crc[i+20] = rcv_datasend_command_2[i];
-		    	}
-		    	for (int i = 0; i < 16; ++i)
-		    	{
-		    		keyB[i]=send_crc[i];
-		    	}
-		    	uint16 sendcrcres = ModBusCRC(send_crc, 27);
-			    rcv_datasend_command_2[7]= ((sendcrcres>>8) &0x00FF);
-			    rcv_datasend_command_2[8]= (sendcrcres&0x00FF);
-			    // for (int i = 0; i < 20; ++i)
-		    	// {
-		    	// 	UART_PrintValue(" send= ", rcv_datasend_command_2[i],16);
-		    	// }			
-
-				// SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, rcv_datasend_command_1 );
-		  // 		SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, rcv_datasend_command_2 );
-
-
-			    SendNotify(rcv_datasend_command_1,20);
-		    	SendNotify(rcv_datasend_command_2,9);
-
-		  		for (int i = 0; i < 29; ++i)
-		  		{
-		  			rcv_data[i] = 0;
-		  		}
-			}
-		}
-		if(rec_flag == 5)
-		{
-			UART_PrintValue("the five data= ",newValue[10],16);
-
-			rcv_data[0] = newValue[0];
-	      	rcv_data[1] = newValue[1];
-	      	rcv_data[2] = newValue[2];
-	      	rcv_data[3] = newValue[3];
-	      	rcv_data[4] = newValue[4];
-	      	rcv_data[5] = newValue[5];
-	      	rcv_data[6] = newValue[6];
-	      	rcv_data[7] = newValue[7];
-	      	rcv_data[8] = newValue[8];
-	      	rcv_data[9] = newValue[9];
-	      	rcv_data[10] = newValue[10];
-	      	rcv_data[11] = newValue[11];
-	      	rcv_data[12] = newValue[12];
-	      	rcv_data[13] = newValue[13];
-	      	rcv_data[14] = newValue[14];
-	      	rcv_data[15] = newValue[15];
-	      	rcv_data[16] = newValue[16];
-	      	rcv_data[17] = newValue[17];
-	      	rcv_data[18] = newValue[18];
-	      	rcv_data[19] = newValue[19];			
-		}
-		if(rec_flag == 6)
-		{
-			rcv_data[20] = newValue[0];
-	      	rcv_data[21] = newValue[1];
-	      	rcv_data[22] = newValue[2];
-	      	rcv_data[23] = newValue[3];
-	      	rcv_data[24] = newValue[4];
-	      	rcv_data[25] = newValue[5];
-	      	rcv_data[26] = newValue[6];
-	      	rcv_data[27] = newValue[7];
-	      	rcv_data[28] = newValue[8];
-
-	      	uint16 crcres = ModBusCRC(rcv_data, 27);
-			uint8 crc_L = (crcres >> 8 & 0x00FF);    //27
-			uint8 crc_H = (crcres & 0x00FF);         //28
-
-			if( (crc_H==rcv_data[28]) && (crc_L==rcv_data[27]) )
-			{
-                // UART_PrintString("----------ok-----------");
-  uint8 encrypted_buf[16];
-  uint8 deccrypted_buf[16];
-  for (int i = 0; i < 16; ++i)
-  {
-  	encrypted_buf[i] = rcv_data[i+11];
-  }
-//  LL_Encrypt( key, source_buf, encrypted_buf );
-  LL_EXT_Decrypt( keyB, encrypted_buf, deccrypted_buf);
-                // 
-                rcv_datasend_command_1[0] = 0xef;
-                rcv_datasend_command_1[1] = 0x01;
-			    rcv_datasend_command_1[2] = macaddr[0];
-			    rcv_datasend_command_1[3] = macaddr[1];
-			    rcv_datasend_command_1[4] = macaddr[2];
-			    rcv_datasend_command_1[5] = macaddr[3];
-			    rcv_datasend_command_1[6] = macaddr[4];
-			    rcv_datasend_command_1[7] = macaddr[5];
-			    rcv_datasend_command_1[8] = 0x07;
-			    rcv_datasend_command_1[9] = 0x13;
-			    rcv_datasend_command_1[10]= 0x2d;
-			    rcv_datasend_command_1[11]= 0;
-			    rcv_datasend_command_1[12]= 0;
-			    rcv_datasend_command_1[13]= 0;
-			    rcv_datasend_command_1[14]= 0;
-			    rcv_datasend_command_1[15]= 0;
-			    rcv_datasend_command_1[16]= 0;
-			    rcv_datasend_command_1[17]= 0;
-			    rcv_datasend_command_1[18]= 0;
-			    rcv_datasend_command_1[19]= 0;
-			    rcv_datasend_command_2[0]= 0;
-			    rcv_datasend_command_2[1]= 0;
-			    rcv_datasend_command_2[2]= 0;
-			    rcv_datasend_command_2[3]= 0;
-			    rcv_datasend_command_2[4]= 0;
-			    rcv_datasend_command_2[5]= rcv_data[25];
-			    rcv_datasend_command_2[6]= rcv_data[26];
-
-			 	for (uint8 i = 0; i < 20; ++i)
-		    	{
-		    		send_crc[i] = rcv_datasend_command_1[i];
-		    	}
-			    for (uint8 i = 0; i < 7; ++i)
-		    	{
-		    		send_crc[i+20] = rcv_datasend_command_2[i];
-		    	}
-		    	uint16 sendcrcres = ModBusCRC(send_crc, 27);
-			    rcv_datasend_command_2[7]= ((sendcrcres>>8) &0x00FF);
-			    rcv_datasend_command_2[8]= (sendcrcres&0x00FF);
-			    // for (int i = 0; i < 20; ++i)
-		    	// {
-		    	// 	UART_PrintValue(" send= ", rcv_datasend_command_2[i],16);
-		    	// }
-
-				// SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, rcv_datasend_command_1 );
-		  // 		SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, rcv_datasend_command_2 );
-
-			    SendNotify(rcv_datasend_command_1,20);
-		    	SendNotify(rcv_datasend_command_2,9);
-
-		  		for (int i = 0; i < 29; ++i)
-		  		{
-		  			rcv_data[i] = 0;
-		  		}
-			}			
-		}
-
-
-*/
-
-        rec_flag++;
-
 		break;
 	    default:
 	        motoA = 0;
@@ -1231,17 +887,9 @@ void ReadMac(unsigned char *TempMacAddress,int len)  // Len 一定是6 
 
 #define XREG(addr)       ((unsigned char volatile __xdata *) 0)[addr]
 
-
-
-
-
 //随机数
 
 uint16 osal_rand( void );
-
-
-
-
 
 void InvertUint8(unsigned char *dBuf,unsigned char *srcBuf)
 {
