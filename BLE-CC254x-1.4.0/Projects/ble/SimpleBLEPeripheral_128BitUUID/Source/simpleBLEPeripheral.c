@@ -27,6 +27,8 @@ uint8 sofe_ver = 0;
 uint8 hard_ver = 0;
 uint8 power_value = 0;
 uint8 lock_status = 2;
+uint8 battery = 0;
+
 
 uint8 keya[16] = {0x00,0x01,0x02,0x3,0x4,0x5,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
 
@@ -211,10 +213,10 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
   I2CIO = 0X00;
   P1SEL &= ~0x80;
   P1DIR |= 0x80;
+  P1DIR |= 0x03;
 
   // Setup the GAP
   VOID GAP_SetParamValue( TGAP_CONN_PAUSE_PERIPHERAL, DEFAULT_CONN_PAUSE_PERIPHERAL );
-  
   // Setup the GAP Peripheral Role Profile
   {
     #if defined( CC2540_MINIDK )
@@ -224,18 +226,15 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
       // For other hardware platforms, device starts advertising upon initialization
       uint8 initial_advertising_enable = TRUE;
     #endif
-
     // By setting this to zero, the device will go into the waiting state after
     // being discoverable for 30.72 second, and will not being advertising again
     // until the enabler is set back to TRUE
     uint16 gapRole_AdvertOffTime = 0;
-
     uint8 enable_update_request = DEFAULT_ENABLE_UPDATE_REQUEST;
     uint16 desired_min_interval = DEFAULT_DESIRED_MIN_CONN_INTERVAL;
     uint16 desired_max_interval = DEFAULT_DESIRED_MAX_CONN_INTERVAL;
     uint16 desired_slave_latency = DEFAULT_DESIRED_SLAVE_LATENCY;
     uint16 desired_conn_timeout = DEFAULT_DESIRED_CONN_TIMEOUT;
-
     // Set the GAP Role Parameters
     GAPRole_SetParameter( GAPROLE_ADVERT_ENABLED, sizeof( uint8 ), &initial_advertising_enable );
     GAPRole_SetParameter( GAPROLE_ADVERT_OFF_TIME, sizeof( uint16 ), &gapRole_AdvertOffTime );
@@ -298,7 +297,6 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
   
   // Register callback with SimpleGATTprofile
   VOID SimpleProfile_RegisterAppCBs( &simpleBLEPeripheral_SimpleProfileCBs );
-
   // Enable clock divide on halt
   // This reduces active current while radio is active and CC254x MCU
   // is halted
@@ -333,7 +331,6 @@ void rgb_led()
 		I2CIO = 0x02;
 		P1_7 = 0;
 	}
-
 }
 
 uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
@@ -348,7 +345,6 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
     if ( (pMsg = osal_msg_receive( simpleBLEPeripheral_TaskID )) != NULL )   //系统消息
     {
       simpleBLEPeripheral_ProcessOSALMsg( (osal_event_hdr_t *)pMsg );      //消息处理
-
       // Release the OSAL message
       VOID osal_msg_deallocate( pMsg );
     }
@@ -360,10 +356,8 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
   {
     // Start the Device
     VOID GAPRole_StartDevice( &simpleBLEPeripheral_PeripheralCBs );
-
     // Start Bond Manager
     VOID GAPBondMgr_Register( &simpleBLEPeripheral_BondMgrCBs );
-
     // Set timer for first periodic event
     osal_start_timerEx( simpleBLEPeripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD );
 
@@ -377,32 +371,38 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
     {
       osal_start_timerEx( simpleBLEPeripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD );
     }
-
     // Perform periodic application task
     //adc
-    adcres[0] = HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
+//    adcres[0] = HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
 
-    rgb_led();
-    rgb_flag ++;
+//    battery = (uint8)0.3922*adcres[0];
 
-    if(rgb_flag == 3)
-    	rgb_flag = 0;
-   // Getmac
+	//I2CIO = 0x01;  // green
+	//P1_7 = 0;  //  red
+	//I2CIO = 0x02;   //blue
+
+
+   // if(adcres[0] < 50)
+    //{
+	//	I2CIO = 0x01;  // green
+	//	P1_7 = 0;  //  red
+    //}
+
+    // rgb_led();
+    // rgb_flag ++;
+
+    // if(rgb_flag == 3)
+    // 	rgb_flag = 0;
     //SendNotify(macaddr,6);
    // SendNotify(adcres,1);
-
     return (events ^ SBP_PERIODIC_EVT);
   }
-
-  // Discard unknown events
   return 0;
 }
-
 /*********************************************************************
 *系统消息处理函数
 判断是什么消息， pMsg->event 的值。
  */
-
 // 按键处理函数
 static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
 {
@@ -447,50 +447,34 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
       {
         uint8 ownAddress[B_ADDR_LEN];
         uint8 systemId[DEVINFO_SYSTEM_ID_LEN];
-
         GAPRole_GetParameter(GAPROLE_BD_ADDR, ownAddress);
-
-        // use 6 bytes of device address for 8 bytes of system ID value
         systemId[0] = ownAddress[0];
         systemId[1] = ownAddress[1];
         systemId[2] = ownAddress[2];
-
         // set middle bytes to zero
         systemId[4] = 0x00;
         systemId[3] = 0x00;
-
         // shift three bytes up
         systemId[7] = ownAddress[5];
         systemId[6] = ownAddress[4];
         systemId[5] = ownAddress[3];
-        
         macaddr[5] = ownAddress[0];
         macaddr[4] = ownAddress[1];
         macaddr[3] = ownAddress[2];
         macaddr[2] = ownAddress[3];
         macaddr[1] = ownAddress[4];
-        macaddr[0] = ownAddress[5];
-         
+        macaddr[0] = ownAddress[5];      
 //3E E8 9C 19 FD C8  
 //C8 FD 19 9C E8 3E
         DevInfo_SetParameter(DEVINFO_SYSTEM_ID, DEVINFO_SYSTEM_ID_LEN, systemId);
       }
       break;
-
     case GAPROLE_ADVERTISING:
-      {
-      //    HalLcdWriteString( "Advertising",  HAL_LCD_LINE_3 );
-      }
       break;
 
     case GAPROLE_CONNECTED:
       {        
-      //    HalLcdWriteString( "Connected",  HAL_LCD_LINE_3 );
-      
 #ifdef PLUS_BROADCASTER
-        // Only turn advertising on for this state when we first connect
-        // otherwise, when we go from connected_advertising back to this state
-        // we will be turning advertising back on.
         if ( first_conn_flag == 0 ) 
         {
           uint8 adv_enabled_status = 1;
@@ -502,39 +486,20 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
       break;
 
     case GAPROLE_CONNECTED_ADV:
-      {
-      //    HalLcdWriteString( "Connected Advertising",  HAL_LCD_LINE_3 );
-      }
       break;      
     case GAPROLE_WAITING:
-      {
-
-      //    HalLcdWriteString( "Disconnected",  HAL_LCD_LINE_3 );
-
-      }
       break;
-
     case GAPROLE_WAITING_AFTER_TIMEOUT:
       {
-
-       //   HalLcdWriteString( "Timed Out",  HAL_LCD_LINE_3 );
 #ifdef PLUS_BROADCASTER
         // Reset flag for next connection.
         first_conn_flag = 0;
 #endif //#ifdef (PLUS_BROADCASTER)
       }
       break;
-
     case GAPROLE_ERROR:
-      {
-        //  HalLcdWriteString( "Error",  HAL_LCD_LINE_3 );
-      }
       break;
-
     default:
-      {
-      //    HalLcdWriteString( "",  HAL_LCD_LINE_3 );
-      }
       break;
   }
   gapProfileState = newState;
@@ -582,59 +547,71 @@ unsigned short ModBusCRC (unsigned char *ptr,unsigned char size)
 uint8 rcv_data[29]={0};
 uint8 keyB[16]={0};
 
+void locks(void)
+{
+	motoA = 1;
+	motoB = 0;
+	lock_status = 0;
+}
+
+void unlocks(void)
+{
+	motoA = 0;
+	motoB = 1;
+	lock_status = 1;
+}
+
+
 static void simpleProfileChangeCB( uint8 paramID )
 {
-  uint8 newValue[20];
-  uint8 phonemac[6];
-  uint8 i = 0;
-  uint8 rcv_datasend_command_1[20]={0};
-  uint8 rcv_datasend_command_2[20]={0};
-  uint8 send_crc[31];
+	uint8 newValue[20];
+	uint8 phonemac[6];
+	uint8 i = 0;
+	uint8 rcv_datasend_command_1[20]={0};
+	uint8 rcv_datasend_command_2[20]={0};
+	uint8 send_crc[31];
 
-  switch( paramID )
-  {
+	switch( paramID )
+	{
 	    case SIMPLEPROFILE_CHAR1:
-	      SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, newValue );
-          
-          if(newValue[0] == 0xef)
-          {
-          	rcv_data[0] = newValue[0];
-	      	rcv_data[1] = newValue[1];
-	      	rcv_data[2] = newValue[2];
-	      	rcv_data[3] = newValue[3];
-	      	rcv_data[4] = newValue[4];
-	      	rcv_data[5] = newValue[5];
-	      	rcv_data[6] = newValue[6];
-	      	rcv_data[7] = newValue[7];
-	      	rcv_data[8] = newValue[8];
-	      	rcv_data[9] = newValue[9];
-	      	rcv_data[10] = newValue[10];
-	      	rcv_data[11] = newValue[11];
-	      	rcv_data[12] = newValue[12];
-	      	rcv_data[13] = newValue[13];
-	      	rcv_data[14] = newValue[14];
-	      	rcv_data[15] = newValue[15];
-	      	rcv_data[16] = newValue[16];
-	      	rcv_data[17] = newValue[17];
-	      	rcv_data[18] = newValue[18];
-	      	rcv_data[19] = newValue[19];
-          }
-          	rcv_data[20] = newValue[0];
-	      	rcv_data[21] = newValue[1];
-	      	rcv_data[22] = newValue[2];
-	      	rcv_data[23] = newValue[3];
-	      	rcv_data[24] = newValue[4];
-	      	rcv_data[25] = newValue[5];
-	      	rcv_data[26] = newValue[6];
-	      	rcv_data[27] = newValue[7];
-	      	rcv_data[28] = newValue[8];
-			// for (int i = 0; i < 29; i++)
-			// {
-			// 	UART_PrintValue(" rcv_= ", rcv_data[i], 10);
-			// }       	
-	      	uint16 crcres = ModBusCRC(rcv_data, 27);
-			uint8 crc_L = (crcres >> 8 & 0x00FF);    //27
-			uint8 crc_H = (crcres & 0x00FF);         //28
+	    {
+	    	SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, newValue );
+            if(newValue[0] == 0xef)
+            {
+	          	rcv_data[0] = newValue[0];
+		      	rcv_data[1] = newValue[1];
+		      	rcv_data[2] = newValue[2];
+		      	rcv_data[3] = newValue[3];
+		      	rcv_data[4] = newValue[4];
+		      	rcv_data[5] = newValue[5];
+		      	rcv_data[6] = newValue[6];
+		      	rcv_data[7] = newValue[7];
+		      	rcv_data[8] = newValue[8];
+		      	rcv_data[9] = newValue[9];
+		      	rcv_data[10] = newValue[10];
+		      	rcv_data[11] = newValue[11];
+		      	rcv_data[12] = newValue[12];
+		      	rcv_data[13] = newValue[13];
+		      	rcv_data[14] = newValue[14];
+		      	rcv_data[15] = newValue[15];
+		      	rcv_data[16] = newValue[16];
+		      	rcv_data[17] = newValue[17];
+		      	rcv_data[18] = newValue[18];
+		      	rcv_data[19] = newValue[19];
+	          }
+	          	rcv_data[20] = newValue[0];
+		      	rcv_data[21] = newValue[1];
+		      	rcv_data[22] = newValue[2];
+		      	rcv_data[23] = newValue[3];
+		      	rcv_data[24] = newValue[4];
+		      	rcv_data[25] = newValue[5];
+		      	rcv_data[26] = newValue[6];
+		      	rcv_data[27] = newValue[7];
+		      	rcv_data[28] = newValue[8];
+    	
+		      	uint16 crcres = ModBusCRC(rcv_data, 27);
+				uint8 crc_L = (crcres >> 8 & 0x00FF);    //27
+				uint8 crc_H = (crcres & 0x00FF);         //28
 
 			if(rcv_data[10] == 0x2e)
 			{
@@ -651,8 +628,8 @@ static void simpleProfileChangeCB( uint8 paramID )
 				    rcv_datasend_command_1[8] = 0x07;
 				    rcv_datasend_command_1[9] = 0x15;
 				    rcv_datasend_command_1[10]= 0x2e;
-				    rcv_datasend_command_1[11]= 0x00;
-				    rcv_datasend_command_1[12]= 0x0a;
+				    rcv_datasend_command_1[11]= rcv_data[11];
+				    rcv_datasend_command_1[12]= rcv_data[12];
 				    rcv_datasend_command_1[13]=	macaddr[0];
 				    rcv_datasend_command_1[14]=	macaddr[1];
 				    rcv_datasend_command_1[15]=	macaddr[2];
@@ -752,23 +729,13 @@ static void simpleProfileChangeCB( uint8 paramID )
 
 				if( (crc_H==rcv_data[28]) && (crc_L==rcv_data[27]) )
 				{
-					// for (int i = 0; i < 29; i++)
-					// 	UART_PrintValue(" b= ", rcv_data[i],10);
-
 					uint8 encrypted_buf[16]={0};
 					uint8 deccrypted_buf[16]={0};
 					for (int i = 0; i < 16; ++i)
 					{
 						encrypted_buf[i] = rcv_data[i+11];
 					}
-
 					LL_EXT_Decrypt( keyB, encrypted_buf, deccrypted_buf);
-
-					// for (int i = 0; i < 16; i++)
-					// 	UART_PrintValue(" dec= ", deccrypted_buf[i],10);
-
-					// 解密后对密文的第一第二个字节验证 是否是 0x34   0x56    正确后 判断倒数第一个字节，如果为254   对应上锁  ， 255对应解锁。  
-					 
 		            rcv_datasend_command_1[0] = 0xef;
 	                rcv_datasend_command_1[1] = 0x01;
 				    rcv_datasend_command_1[2] = macaddr[0];
@@ -780,10 +747,9 @@ static void simpleProfileChangeCB( uint8 paramID )
 				    rcv_datasend_command_1[8] = 0x07;
 				    rcv_datasend_command_1[9] = 0x13;
 				    rcv_datasend_command_1[10]= 0x2d;
-				    
-				    rcv_datasend_command_1[12]= adcres[0];
-				    
-				    rcv_datasend_command_1[14]= 0;
+				    rcv_datasend_command_1[11]= 0;
+				    rcv_datasend_command_1[12]= 0;
+
 				    rcv_datasend_command_1[15]= 0;
 				    rcv_datasend_command_1[16]= 0;
 				    rcv_datasend_command_1[17]= 0;
@@ -798,9 +764,11 @@ static void simpleProfileChangeCB( uint8 paramID )
 					 
 					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56)&&(deccrypted_buf[15])== 0xfe)    //lock
 					{
-						lock_status = 0;
-						rcv_datasend_command_1[11]= 0x05;
-						rcv_datasend_command_1[13]= lock_status;
+						locks();
+						rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);;
+						rcv_datasend_command_1[14]= lock_status;
+						
+
 					    rcv_datasend_command_2[6]= 0xfe;
 					 	for (uint8 i = 0; i < 20; ++i)
 				    	{
@@ -811,7 +779,6 @@ static void simpleProfileChangeCB( uint8 paramID )
 				    		send_crc[i+20] = rcv_datasend_command_2[i];
 				    	}
 				    	uint16 sendcrcres = ModBusCRC(send_crc, 27);
-
 					    rcv_datasend_command_2[7]= ((sendcrcres>>8) &0x00FF);
 					    rcv_datasend_command_2[8]= (sendcrcres&0x00FF);
 					    SendNotify(rcv_datasend_command_1,20);
@@ -820,14 +787,14 @@ static void simpleProfileChangeCB( uint8 paramID )
 				  		{
 				  			rcv_data[i] = 0;
 				  		}
-				  		motoA = 1;
-              			motoB = 0;
+
 					}
 					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56)&&(deccrypted_buf[15])== 0xff)    //unlock
 					{
-						rcv_datasend_command_1[11]= 0x00;
-						lock_status = 1;
-						rcv_datasend_command_1[13]= lock_status;
+						unlocks();
+						rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);;
+						rcv_datasend_command_1[14]= lock_status;
+
 					    rcv_datasend_command_2[6]= 0xff;
 					 	for (uint8 i = 0; i < 20; ++i)
 				    	{
@@ -846,13 +813,11 @@ static void simpleProfileChangeCB( uint8 paramID )
 				  		{
 				  			rcv_data[i] = 0;
 				  		}
-				  		motoA = 0;
-              			motoB = 1;
 					}
-
 				}
-		}
-		break;
+			}
+			break;
+	    }
 	    default:
 	        motoA = 0;
 	        motoB = 0;
