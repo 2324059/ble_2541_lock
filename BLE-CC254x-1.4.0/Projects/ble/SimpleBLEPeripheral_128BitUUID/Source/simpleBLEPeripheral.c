@@ -27,7 +27,9 @@ uint8 sofe_ver = 0;
 uint8 hard_ver = 0;
 uint8 power_value = 0;
 uint8 lock_status = 2;
-uint8 battery = 0;
+uint8 battery[2] = {0,0};
+uint8 led_num = 0;
+uint8 led_flag = 0;
 
 
 uint8 keya[16] = {0x00,0x01,0x02,0x3,0x4,0x5,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
@@ -37,7 +39,7 @@ uint8 keya[16] = {0x00,0x01,0x02,0x3,0x4,0x5,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,
 #include "DataHandle.h"
 
 // How often to perform periodic event
-#define SBP_PERIODIC_EVT_PERIOD                   1000   //700
+#define SBP_PERIODIC_EVT_PERIOD                   800   //700
 
 // What is the advertising interval when device is discoverable (units of 625us, 160=100ms)
 #define DEFAULT_ADVERTISING_INTERVAL          160
@@ -82,7 +84,7 @@ static uint8 simpleBLEPeripheral_TaskID;   // Task ID for internal task/event pr
 static gaprole_States_t gapProfileState = GAPROLE_INIT;
 
 
-unsigned char adcres[1] = {0};
+uint8 adcres[1] = {0};
 
 
 // GAP - SCAN RSP data (max size = 31 bytes)
@@ -126,7 +128,7 @@ static uint8 advertData[] =
 
   // service UUID, to notify central devices what services are included
   // in this peripheral
-  0x03,   // length of this data
+  0x03,   // length of this data发
   GAP_ADTYPE_16BIT_MORE,      // some of the UUID's, but not all
   LO_UINT16( GHOSTYU_DEVICE_SERV_UUID ),
   HI_UINT16( GHOSTYU_DEVICE_SERV_UUID ),
@@ -185,36 +187,30 @@ void Aes128EncryptAndDecrypTest(void)
 
   LL_Encrypt( key, source_buf, encrypted_buf );
 //  LL_EXT_Decrypt( key, encrypted_buf, deccrypted_buf);
-
-  //tx_printf("source:");
   for( i=0; i<16; i++)
   {
     UART_PrintValue(" ", encrypted_buf[i],16);
   }
-  //tx_printf("");
-  //tx_printf("deccrypte:");
-  UART_Print("****************",16);
   for(i=0; i<16; i++)
   {
     UART_PrintValue(" ", deccrypted_buf[i],16);
  // 	txprintf("0x%02x ", deccrypted_buf[i]);
   }
-  //tx_printf("");
 }
 
 void SimpleBLEPeripheral_Init( uint8 task_id )
 {
-  simpleBLEPeripheral_TaskID = task_id;
-  
+  simpleBLEPeripheral_TaskID = task_id;  
   SerialApp_Init(task_id);
   UART_PrintString("JDprofile Start\r\n");
-
-  I2CWC = 0X83;
-  I2CIO = 0X00;
+  I2CWC = 0x83;
+  I2CIO = 0x03;
   P1SEL &= ~0x80;
   P1DIR |= 0x80;
   P1DIR |= 0x03;
-
+  P1_7 = 1;
+  HalAdcInit();
+  HalAdcSetReference(0x80);
   // Setup the GAP
   VOID GAP_SetParamValue( TGAP_CONN_PAUSE_PERIPHERAL, DEFAULT_CONN_PAUSE_PERIPHERAL );
   // Setup the GAP Peripheral Role Profile
@@ -313,26 +309,6 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
 
 }
 
-uint8 rgb_flag = 0;
-void rgb_led()
-{
-	if(rgb_flag == 0)
-	{
-		I2CIO = 0x01;
-		P1_7 = 0;		
-	}
-	else if(rgb_flag == 1)
-	{
-		I2CIO = 0x00;
-		P1_7 = 1;
-	}
-	else if(rgb_flag == 2)
-	{
-		I2CIO = 0x02;
-		P1_7 = 0;
-	}
-}
-
 uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
 {
 
@@ -372,28 +348,42 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
       osal_start_timerEx( simpleBLEPeripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD );
     }
     // Perform periodic application task
-    //adc
-//    adcres[0] = HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
-
-//    battery = (uint8)0.3922*adcres[0];
-
-	//I2CIO = 0x01;  // green
-	//P1_7 = 0;  //  red
-	//I2CIO = 0x02;   //blue
+    APCFG |= 0x01;
+    adcres[0] = HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
 
 
-   // if(adcres[0] < 50)
-    //{
-	//	I2CIO = 0x01;  // green
-	//	P1_7 = 0;  //  red
-    //}
+    if( (led_flag == 1)||(led_num > 0) )
+      led_num++;
 
-    // rgb_led();
-    // rgb_flag ++;
+    if( (led_num > 0) && (led_num <= 10) )
+    {
+      if(led_num%2)
+      {
+        if( adcres[0] >= 0x3A )
+        {
+          I2CIO &= ~0x02;  // green
+          P1_7 = 1;
+        }
+        else
+        {
+          I2CIO = 0x03;
+          P1_7 = 0;  //  red
+        }       
+      }
+      else
+      {
+        P1_7 = 1;
+        I2CIO = 0x03;
+      }  
+    }
+    else if(led_num == 10)
+    {
+      led_num = 0;
+      led_flag = 0;
+    }
 
-    // if(rgb_flag == 3)
-    // 	rgb_flag = 0;
     //SendNotify(macaddr,6);
+   // SendNotify(battery,2);
    // SendNotify(adcres,1);
     return (events ^ SBP_PERIODIC_EVT);
   }
@@ -575,10 +565,12 @@ static void simpleProfileChangeCB( uint8 paramID )
 	{
 	    case SIMPLEPROFILE_CHAR1:
 	    {
+
 	    	SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, newValue );
             if(newValue[0] == 0xef)
             {
-	          	rcv_data[0] = newValue[0];
+              led_flag = 1;
+	          rcv_data[0] = newValue[0];
 		      	rcv_data[1] = newValue[1];
 		      	rcv_data[2] = newValue[2];
 		      	rcv_data[3] = newValue[3];
@@ -749,7 +741,7 @@ static void simpleProfileChangeCB( uint8 paramID )
 				    rcv_datasend_command_1[10]= 0x2d;
 				    rcv_datasend_command_1[11]= 0;
 				    rcv_datasend_command_1[12]= 0;
-
+				    rcv_datasend_command_1[13]= 80;
 				    rcv_datasend_command_1[15]= 0;
 				    rcv_datasend_command_1[16]= 0;
 				    rcv_datasend_command_1[17]= 0;
@@ -765,7 +757,7 @@ static void simpleProfileChangeCB( uint8 paramID )
 					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56)&&(deccrypted_buf[15])== 0xfe)    //lock
 					{
 						locks();
-						rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);;
+						//rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
 						rcv_datasend_command_1[14]= lock_status;
 						
 
@@ -792,9 +784,8 @@ static void simpleProfileChangeCB( uint8 paramID )
 					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56)&&(deccrypted_buf[15])== 0xff)    //unlock
 					{
 						unlocks();
-						rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);;
+						//rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
 						rcv_datasend_command_1[14]= lock_status;
-
 					    rcv_datasend_command_2[6]= 0xff;
 					 	for (uint8 i = 0; i < 20; ++i)
 				    	{

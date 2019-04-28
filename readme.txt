@@ -112,6 +112,30 @@ EF 1        2B  B 82 D2 84 FC      1          A            1E            0    0 
 GIT 上创建了新的分支，在此创建分支，是项目的添加协议前各项功能正常。为后续工作做一个记录点。
 
 
+keya  需要首先指定。
+
+在2C指令中，随机生成14字节数据，与接收到的数据区最后两个字节 一共16个字节，为 KEYB。
+
+利用KEYa 对 keyb 进行MD5加密，加密后发送16个字节。
+
+
+
+
+
+调试
+
+
+the three data=  0 
+0x2c=  A8
+
+the five data=  0
+
+ encrypted_buf=  180 encrypted_buf=  84 encrypted_buf=  186 encrypted_buf=  56 encrypted_buf=  234 encrypted_buf=  45 encrypted_buf=  66 encrypted_buf=  147 encrypted_buf=  40 encrypted_buf=  6 encrypted_buf=  114 encrypted_buf=  129 encrypted_buf=  22 deccrypted_buf=  45 deccrypted_buf=  131 deccrypted_buf=  25 deccrypted_buf=  84 deccrypted_buf=  137 deccrypted_buf=  37 deccrypted_buf=  62
+
+
+
+
+
 
 
 
