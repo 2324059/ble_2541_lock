@@ -20,6 +20,7 @@
 #define motoA   P1_0
 #define motoB   P1_1
 #define limte_key P1_3
+//#define XREG(addr)       ((unsigned char volatile __xdata *) 0)[addr]
 
 uint8 lock_flag = 0;
 static uint8 macaddr[6]={0}; //   mac 地址 
@@ -31,69 +32,57 @@ uint8 battery[2] = {0,0};
 uint8 led_num = 0;
 uint8 led_flag = 0;
 
-
 uint8 keya[16] = {0x00,0x01,0x02,0x3,0x4,0x5,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f};
-
 //uart print
 #include "SerialApp.h"
 #include "DataHandle.h"
-
 // How often to perform periodic event
-#define SBP_PERIODIC_EVT_PERIOD                   800   //700
-
+#define SBP_PERIODIC_EVT_PERIOD                   600   //700
 // What is the advertising interval when device is discoverable (units of 625us, 160=100ms)
 #define DEFAULT_ADVERTISING_INTERVAL          160
-
 // Limited discoverable mode advertises for 30.72s, and then stops
 // General discoverable mode advertises indefinitely
-
 #if defined ( CC2540_MINIDK )
 #define DEFAULT_DISCOVERABLE_MODE             GAP_ADTYPE_FLAGS_LIMITED
 #else
 #define DEFAULT_DISCOVERABLE_MODE             GAP_ADTYPE_FLAGS_GENERAL
 #endif  // defined ( CC2540_MINIDK )
-
 // Minimum connection interval (units of 1.25ms, 80=100ms) if automatic parameter update request is enabled
 #define DEFAULT_DESIRED_MIN_CONN_INTERVAL     80
-
 // Maximum connection interval (units of 1.25ms, 800=1000ms) if automatic parameter update request is enabled
 #define DEFAULT_DESIRED_MAX_CONN_INTERVAL     800
-
 // Slave latency to use if automatic parameter update request is enabled
 #define DEFAULT_DESIRED_SLAVE_LATENCY         0
-
 // Supervision timeout value (units of 10ms, 1000=10s) if automatic parameter update request is enabled
 #define DEFAULT_DESIRED_CONN_TIMEOUT          1000
-
 // Whether to enable automatic parameter update request when a connection is formed
 #define DEFAULT_ENABLE_UPDATE_REQUEST         TRUE
-
 // Connection Pause Peripheral time value (in seconds)
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
-
 // Company Identifier: Texas Instruments Inc. (13)
 #define TI_COMPANY_ID                         0x000D
-
 #define INVALID_CONNHANDLE                    0xFFFF
-
 // Length of bd addr as a string
 #define B_ADDR_STR_LEN                        15
-
 static uint8 simpleBLEPeripheral_TaskID;   // Task ID for internal task/event processing
-
 static gaprole_States_t gapProfileState = GAPROLE_INIT;
-
-
 uint8 adcres[1] = {0};
 
-
+static void Get_Mac(uint8 *MacAddress)         
+{  
+  MacAddress[5] = XREG(0x780E);     
+  MacAddress[4] = XREG(0x780F);    
+  MacAddress[3] = XREG(0x7810);    
+  MacAddress[2] = XREG(0x7811);                   
+  MacAddress[1] = XREG(0x7812);    
+  MacAddress[0] = XREG(0x7813);   
+}
 // GAP - SCAN RSP data (max size = 31 bytes)
 static uint8 scanRspData[] =
 {
   // complete name
   0x07,   // length of this data
   GAP_ADTYPE_LOCAL_NAME_COMPLETE,
- 
   0x45,   // 'E'
   0x5F,   // '_'
   0x4C,   // 'L'
@@ -133,27 +122,26 @@ static uint8 advertData[] =
   LO_UINT16( GHOSTYU_DEVICE_SERV_UUID ),
   HI_UINT16( GHOSTYU_DEVICE_SERV_UUID ),
 
-  0x08,
+  0x07,
   GAP_ADTYPE_MANUFACTURER_SPECIFIC,
-  0x9C,0xD2,0x1E,0xF3,0xE9,0xC9
-
+  0x9C,0x9C,0x9C,0x9C,0x9C,0x9C,
+//  GAP_ADTYPE_MAC_SPECIFIC,
+//  0,0,0,0,0,0
+  
+  0x07,
+  GAP_ADTYPE_MAC_SPECIFIC,
+  0x00,0x00,0x00,0x00,0x00,0x00
 };
 
 // GAP GATT Attributes
 static uint8 attDeviceName[GAP_DEVICE_NAME_LEN] = "E_Lock";
-
 
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
 static void simpleBLEPeripheral_ProcessOSALMsg( osal_event_hdr_t *pMsg );
 static void peripheralStateNotificationCB( gaprole_States_t newState );
-static void performPeriodicTask( void );
 static void simpleProfileChangeCB( uint8 paramID );
-
-#if defined( CC2540_MINIDK )
-static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys );
-#endif
 
 void SendNotify(uint8 *pBuffer,uint16 length);
 
@@ -212,6 +200,7 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
   HalAdcInit();
   HalAdcSetReference(0x80);
   // Setup the GAP
+
   VOID GAP_SetParamValue( TGAP_CONN_PAUSE_PERIPHERAL, DEFAULT_CONN_PAUSE_PERIPHERAL );
   // Setup the GAP Peripheral Role Profile
   {
@@ -236,6 +225,11 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
     GAPRole_SetParameter( GAPROLE_ADVERT_OFF_TIME, sizeof( uint16 ), &gapRole_AdvertOffTime );
 
     GAPRole_SetParameter( GAPROLE_SCAN_RSP_DATA, sizeof ( scanRspData ), scanRspData );
+
+uint8 MacAddress[B_ADDR_LEN];
+Get_Mac(MacAddress);
+osal_memcpy(advertData+12,MacAddress,6);
+    
     GAPRole_SetParameter( GAPROLE_ADVERT_DATA, sizeof( advertData ), advertData );
 
     GAPRole_SetParameter( GAPROLE_PARAM_UPDATE_ENABLE, sizeof( uint8 ), &enable_update_request );
@@ -278,11 +272,11 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
   DevInfo_AddService();                           // Device Information Service
   SimpleProfile_AddService( GATT_ALL_SERVICES );  // Simple GATT Profile
   // Setup the SimpleProfile Characteristic Values
-  {
-    uint8 charValue1[20] = {1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0xA};
-   // SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, charValue1 );
-  //  
-  }  
+  // {
+  //   uint8 charValue1[20] = {1,2,3,4,5,6,7,8,9,0,1,2,3,4,5,6,7,8,9,0xA};
+  //  // SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, 20, charValue1 );
+  // //  
+  // }  
 //init gpio
 //  P1SEL  = 0x00;
 //  P1DIR |= 0x03;
@@ -351,11 +345,10 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
     APCFG |= 0x01;
     adcres[0] = HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
 
-
     if( (led_flag == 1)||(led_num > 0) )
       led_num++;
 
-    if( (led_num > 0) && (led_num <= 10) )
+    if( (led_num > 0) && (led_num <= 6) )
     {
       if(led_num%2)
       {
@@ -376,15 +369,14 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
         I2CIO = 0x03;
       }  
     }
-    else if(led_num == 10)
+    else if(led_num > 6)
     {
       led_num = 0;
       led_flag = 0;
     }
-
-    //SendNotify(macaddr,6);
+    SendNotify(macaddr,6);
    // SendNotify(battery,2);
-   // SendNotify(adcres,1);
+   //SendNotify(adcres,1);
     return (events ^ SBP_PERIODIC_EVT);
   }
   return 0;
@@ -438,6 +430,7 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         uint8 ownAddress[B_ADDR_LEN];
         uint8 systemId[DEVINFO_SYSTEM_ID_LEN];
         GAPRole_GetParameter(GAPROLE_BD_ADDR, ownAddress);
+  
         systemId[0] = ownAddress[0];
         systemId[1] = ownAddress[1];
         systemId[2] = ownAddress[2];
@@ -447,13 +440,19 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         // shift three bytes up
         systemId[7] = ownAddress[5];
         systemId[6] = ownAddress[4];
-        systemId[5] = ownAddress[3];
+        systemId[5] = ownAddress[3];     
+        
         macaddr[5] = ownAddress[0];
         macaddr[4] = ownAddress[1];
         macaddr[3] = ownAddress[2];
         macaddr[2] = ownAddress[3];
         macaddr[1] = ownAddress[4];
-        macaddr[0] = ownAddress[5];      
+        macaddr[0] = ownAddress[5];
+
+        // for(int i = 1; i <= B_ADDR_LEN; i++)
+        // {
+        // 	advertData[sizeof(advertData)-i]=macaddr[B_ADDR_LEN-i];
+        // }
 //3E E8 9C 19 FD C8  
 //C8 FD 19 9C E8 3E
         DevInfo_SetParameter(DEVINFO_SYSTEM_ID, DEVINFO_SYSTEM_ID_LEN, systemId);
@@ -494,23 +493,7 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
   }
   gapProfileState = newState;
 }
-
-static void performPeriodicTask( void )
-{
-  //uint8 value[20]={0,1,2,3};
-  //SendNotify(value,20);
-}
-
-uint8 * Getmac(void)
-{
-
-    GAPRole_GetParameter(GAPROLE_BD_ADDR, macaddr);
-    
-    return macaddr;
-}
    
-uint8 crcdate[27]={0xef,0x01,0x13,0xc4,0x4a,0x19,0x68,0x02,0x01,0x13,0x2e,0x00,0x0a,0x13,0x04,0x03,0x16,0x0e,0x34,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-//	C8  FD  19  9C  20  CC
 unsigned short ModBusCRC (unsigned char *ptr,unsigned char size)
 {
     unsigned short a,b,tmp,CRC16,V;
@@ -539,15 +522,15 @@ uint8 keyB[16]={0};
 
 void locks(void)
 {
-	motoA = 1;
-	motoB = 0;
+	motoA = 0;
+	motoB = 1;
 	lock_status = 0;
 }
 
 void unlocks(void)
 {
-	motoA = 0;
-	motoB = 1;
+	motoA = 1;
+	motoB = 0;
 	lock_status = 1;
 }
 
@@ -565,12 +548,10 @@ static void simpleProfileChangeCB( uint8 paramID )
 	{
 	    case SIMPLEPROFILE_CHAR1:
 	    {
-
 	    	SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, newValue );
             if(newValue[0] == 0xef)
             {
-              led_flag = 1;
-	          rcv_data[0] = newValue[0];
+	            rcv_data[0] = newValue[0];
 		      	rcv_data[1] = newValue[1];
 		      	rcv_data[2] = newValue[2];
 		      	rcv_data[3] = newValue[3];
@@ -756,6 +737,7 @@ static void simpleProfileChangeCB( uint8 paramID )
 					 
 					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56)&&(deccrypted_buf[15])== 0xfe)    //lock
 					{
+						led_flag = 1;
 						locks();
 						//rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
 						rcv_datasend_command_1[14]= lock_status;
@@ -779,10 +761,10 @@ static void simpleProfileChangeCB( uint8 paramID )
 				  		{
 				  			rcv_data[i] = 0;
 				  		}
-
 					}
 					if((deccrypted_buf[0]==0x34)&&(deccrypted_buf[1]==0x56)&&(deccrypted_buf[15])== 0xff)    //unlock
 					{
+						led_flag = 1;
 						unlocks();
 						//rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
 						rcv_datasend_command_1[14]= lock_status;

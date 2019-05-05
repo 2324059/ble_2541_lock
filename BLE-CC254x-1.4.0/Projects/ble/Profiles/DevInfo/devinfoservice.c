@@ -77,7 +77,8 @@ static CONST gattAttrType_t devInfoService = { ATT_BT_UUID_SIZE, devInfoServUUID
 
 // System ID characteristic
 static uint8 devInfoSystemIdProps = GATT_PROP_READ;
-static uint8 devInfoSystemId[DEVINFO_SYSTEM_ID_LEN] = {0, 0, 0, 0, 0, 0, 0, 0};
+//static uint8 devInfoSystemId[DEVINFO_SYSTEM_ID_LEN] = {0, 0, 0, 0, 0, 0, 0, 0};
+static uint8 devInfoSystemId[DEVINFO_SYSTEM_ID_LEN] = {0, 0, 0, 0, 0, 0};
 
 // Model Number String characteristic
 static uint8 devInfoModelNumberProps = GATT_PROP_READ;
