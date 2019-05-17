@@ -27,7 +27,7 @@ static uint8 macaddr[6]={0}; //   mac 地址
 uint8 sofe_ver = 0;
 uint8 hard_ver = 0;
 uint8 power_value = 0;
-uint8 lock_status = 2;
+uint8 lock_status[1] = {1};
 uint8 battery[2] = {0,0};
 uint8 led_num = 0;
 uint8 led_flag = 0;
@@ -68,15 +68,7 @@ static uint8 simpleBLEPeripheral_TaskID;   // Task ID for internal task/event pr
 static gaprole_States_t gapProfileState = GAPROLE_INIT;
 uint8 adcres[1] = {0};
 
-static void Get_Mac(uint8 *MacAddress)         
-{  
-  MacAddress[5] = XREG(0x780E);     
-  MacAddress[4] = XREG(0x780F);    
-  MacAddress[3] = XREG(0x7810);    
-  MacAddress[2] = XREG(0x7811);                   
-  MacAddress[1] = XREG(0x7812);    
-  MacAddress[0] = XREG(0x7813);   
-}
+
 // GAP - SCAN RSP data (max size = 31 bytes)
 static uint8 scanRspData[] =
 {
@@ -102,6 +94,7 @@ static uint8 scanRspData[] =
   0x02,   // length of this data
   GAP_ADTYPE_POWER_LEVEL,
   0       // 0dBm
+  
 };
 
 // GAP - Advertisement data (max size = 31 bytes, though this is
@@ -121,16 +114,31 @@ static uint8 advertData[] =
   GAP_ADTYPE_16BIT_MORE,      // some of the UUID's, but not all
   LO_UINT16( GHOSTYU_DEVICE_SERV_UUID ),
   HI_UINT16( GHOSTYU_DEVICE_SERV_UUID ),
-
+    
+  0x17,  
+  GAP_ADTYPE_MANUFACTURER_SPECIFIC, 
+  0x00,
+  0x00,//产品型号
+  0x01,//硬件
+  0x01,//软件
+  0x00,//0xC8,
+  0x00,//0xFD,
+  0x00,//0x19,
+  0x00,//0x9C,
+  0x00,//0x20,
+  0x00,//0xCC,//mac
+  0x00,//0x64,//power
+  0x00,//0x01,//sta
+  0x00,
+  0x01,
+  0x02,
+  0x03,
+  0x04,
+  0x05,
+  0x06,
   0x07,
-  GAP_ADTYPE_MANUFACTURER_SPECIFIC,
-  0x9C,0x9C,0x9C,0x9C,0x9C,0x9C,
-//  GAP_ADTYPE_MAC_SPECIFIC,
-//  0,0,0,0,0,0
-  
-  0x07,
-  GAP_ADTYPE_MAC_SPECIFIC,
-  0x00,0x00,0x00,0x00,0x00,0x00
+  0x08,
+  0x09
 };
 
 // GAP GATT Attributes
@@ -186,6 +194,16 @@ void Aes128EncryptAndDecrypTest(void)
   }
 }
 
+static void Read_Mac(uint8 *ownAddress)     //读本机MAC
+{
+  ownAddress[5] = *(unsigned char *)(0x780E); // 直接指向指针内容   
+  ownAddress[4] = *(unsigned char *)(0x780F);  
+  ownAddress[3] = *(unsigned char *)(0x7810);  
+  ownAddress[2] = *(unsigned char *)(0x7811);                // define 函数直接读出数据   
+  ownAddress[1] = *(unsigned char *)(0x7812);  
+  ownAddress[0] = XREG(0x7813); 
+}
+
 void SimpleBLEPeripheral_Init( uint8 task_id )
 {
   simpleBLEPeripheral_TaskID = task_id;  
@@ -226,9 +244,9 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
 
     GAPRole_SetParameter( GAPROLE_SCAN_RSP_DATA, sizeof ( scanRspData ), scanRspData );
 
-uint8 MacAddress[B_ADDR_LEN];
-Get_Mac(MacAddress);
-osal_memcpy(advertData+12,MacAddress,6);
+	uint8 MacAddress[6];
+	Read_Mac(MacAddress);
+	osal_memcpy(advertData+13,MacAddress,6);
     
     GAPRole_SetParameter( GAPROLE_ADVERT_DATA, sizeof( advertData ), advertData );
 
@@ -374,9 +392,12 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
       led_num = 0;
       led_flag = 0;
     }
-    SendNotify(macaddr,6);
-   // SendNotify(battery,2);
-   //SendNotify(adcres,1);
+
+// upgread broadcast
+	osal_memcpy(advertData+19,adcres,1);
+	osal_memcpy(advertData+20,lock_status,1);
+	GAPRole_SetParameter( GAPROLE_ADVERT_DATA, sizeof( advertData ), advertData );
+
     return (events ^ SBP_PERIODIC_EVT);
   }
   return 0;
@@ -449,12 +470,6 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
         macaddr[1] = ownAddress[4];
         macaddr[0] = ownAddress[5];
 
-        // for(int i = 1; i <= B_ADDR_LEN; i++)
-        // {
-        // 	advertData[sizeof(advertData)-i]=macaddr[B_ADDR_LEN-i];
-        // }
-//3E E8 9C 19 FD C8  
-//C8 FD 19 9C E8 3E
         DevInfo_SetParameter(DEVINFO_SYSTEM_ID, DEVINFO_SYSTEM_ID_LEN, systemId);
       }
       break;
@@ -524,14 +539,14 @@ void locks(void)
 {
 	motoA = 0;
 	motoB = 1;
-	lock_status = 0;
+	lock_status[0] = 0;
 }
 
 void unlocks(void)
 {
 	motoA = 1;
 	motoB = 0;
-	lock_status = 1;
+	lock_status[0] = 1;
 }
 
 
@@ -740,7 +755,7 @@ static void simpleProfileChangeCB( uint8 paramID )
 						led_flag = 1;
 						locks();
 						//rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
-						rcv_datasend_command_1[14]= lock_status;
+						rcv_datasend_command_1[14]= lock_status[0];
 						
 
 					    rcv_datasend_command_2[6]= 0xfe;
@@ -767,7 +782,7 @@ static void simpleProfileChangeCB( uint8 paramID )
 						led_flag = 1;
 						unlocks();
 						//rcv_datasend_command_1[13]= HalAdcRead (HAL_ADC_CHANNEL_0, HAL_ADC_RESOLUTION_8);
-						rcv_datasend_command_1[14]= lock_status;
+						rcv_datasend_command_1[14]= lock_status[0];
 					    rcv_datasend_command_2[6]= 0xff;
 					 	for (uint8 i = 0; i < 20; ++i)
 				    	{
@@ -813,14 +828,16 @@ void SendNotify(uint8 *pBuffer,uint16 length)
 }
 
 /*********************************************************************
-void ReadMac(unsigned char *TempMacAddress,int len)  // Len 一定是6  
-{  
-   TempMacAddress[5]=XREG(0x780E); // 直接指向指针内容  
-   TempMacAddress[4]=XREG(0x780F);  
-   TempMacAddress[3]=XREG(0x7810);  
-   TempMacAddress[2]=XREG(0x7811);                // define 函数直接读出数据  
-   TempMacAddress[1]=XREG(0x7812);  
-   TempMacAddress[0]=XREG(0x7813);   
+
+
+static void Read_Mac(uint8 *ownAddress)     //读本机MAC
+{
+  ownAddress[5] = *(unsigned char *)(0x780E); // 直接指向指针内容   
+  ownAddress[4] = *(unsigned char *)(0x780F);  
+  ownAddress[3] = *(unsigned char *)(0x7810);  
+  ownAddress[2] = *(unsigned char *)(0x7811);                // define 函数直接读出数据   
+  ownAddress[1] = *(unsigned char *)(0x7812);  
+  ownAddress[0] = XREG(0x7813); 
 }
 
 #define XREG(addr)       ((unsigned char volatile __xdata *) 0)[addr]

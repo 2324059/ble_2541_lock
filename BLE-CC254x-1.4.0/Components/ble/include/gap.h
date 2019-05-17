@@ -300,7 +300,6 @@ extern "C"
 #define GAP_ADTYPE_SERVICE_DATA                 0x16 //!< Service Data
 #define GAP_ADTYPE_APPEARANCE                   0x19 //!< Appearance
 #define GAP_ADTYPE_MANUFACTURER_SPECIFIC        0xFF //!< Manufacturer Specific Data: first 2 octets contain the Company Identifier Code followed by the additional manufacturer specific data
-#define GAP_ADTYPE_MAC_SPECIFIC                 0x1A
 /** @} End GAP_ADTYPE_DEFINES */
 
 /** @defgroup GAP_ADTYPE_FLAGS_MODES GAP ADTYPE Flags Discovery Modes
